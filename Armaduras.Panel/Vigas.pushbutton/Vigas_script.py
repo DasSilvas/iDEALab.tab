@@ -313,19 +313,20 @@ for i in ciclo(ele_rebar):
 rebar_stir = rebar_type(rebars , estribo_diameter, 0) # Diametro do estribos para a execucao da transacao
 rebar_bar = rebar_type(rebars, bar_diameter, 0) # Diametro das barras para a execucao da transacao
 
+print(estribo)
 # Transcao com o REVIT para fazer as armaduras
 
 t = Transaction(doc, "Armaduras")
 t.Start()
 
-for i in ciclo(elementos):
+#for i in ciclo(elementos):
 	
-    estribos = rebar_estribos(elementos[i], v_x[i], rebar_stir[i], rebar_hook(hooks), estribo[i])
-    estribo_esp = estribos.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(spacing[i], comp[i], True ,True ,True)
+ #   estribos = rebar_estribos(elementos[i], v_x[i], rebar_stir[i], rebar_hook(hooks), estribo[i])
+  #  estribo_esp = estribos.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(spacing[i], comp[i], True ,True ,True)
 
-for i in ciclo(elementos_bar):
+#for i in ciclo(elementos_bar):
 
-    bars = rebar_bars(elementos_bar[i], v_y[i], rebar_bar[i], bar[i])
-    bars_number = bars.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(bar_number[i], array[i], True, True, True)
+ #   bars = rebar_bars(elementos_bar[i], v_y[i], rebar_bar[i], bar[i])
+  #  bars_number = bars.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(bar_number[i], array[i], True, True, True)
 	
 t.Commit()

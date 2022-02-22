@@ -6,7 +6,10 @@ Tentar usar parent class and child classes
 import clr
 import Revit
 clr.AddReference("RevitAPI")
-from Autodesk.Revit.DB import UnitUtils, UnitTypeId
+from Autodesk.Revit.DB import UnitUtils, UnitTypeId, Line
+
+def flatten(t):
+    return [item for sublist in t for item in sublist]
 
 class Funk:
 
@@ -40,22 +43,26 @@ class Viga(Element):
         self.comprimento = elemento.LookupParameter("Length").AsDouble()
         self.covertype = doc.GetElement(elemento.LookupParameter("Rebar Cover - Other Faces").AsElementId())
         self.cover_length = self.covertype.LookupParameter("Length").AsDouble()
-
-    def decode(self):
-
         rdc = self.code.split(".")
         self.diametro_estribo = "Ø" + str(rdc[0])
-        self.estribo_espacamento = int(rdc[1])
+        self.estribo_espacamento = Funk.internal_units(int(rdc[1]))
         self.bs_diametro = "Ø" + str(rdc[2])
         self.nr_bs = int(rdc[3])
         self.bi_diametro = "Ø" + str(rdc[4])
         self.nr_bi = int(rdc[5])
-        self.bl = "Ø" + str(rdc[6])
-        self.nr_bl = int(rdc[7])
+        self.nr_bl = int(rdc[6])
+        self.bl_diametro = "Ø" + str(rdc[7])
         self.bol = str(rdc[8])
         self.est_ext_diametro = "Ø" + str(rdc[9])
         self.est_ext_espacamento = Funk.internal_units(int(rdc[10]))
         self.cc = Funk.internal_units(int(rdc[11]))
+        self.cnc = self.cut_comprimento - 2*(self.cc + self.estribo_espacamento)
+
+    def array_length(self, d_estribo):
+        return self.largura - 2*(self.cover_length + d_estribo)
+
+    def sidearray_length(self, d_estribo):
+        return self.altura - 2*(self.cover_length + d_estribo)
 
     def barras(self, d_estribo):
         
@@ -85,7 +92,11 @@ class Viga(Element):
         p_top2 = self.origem.Add(x_vector_f).Add(y_vector_left).Add(z_vector_top)
         self.barras_top = [Line.CreateBound(p_top1 , p_top2)]
 
-    def estribos(self, cc, espacamento, indice):
+        p_side1 = self.origem.Add(x_vector_i).Add(y_vector_right).Add(z_vector_bottom)
+        p_side2 = self.origem.Add(x_vector_f).Add(y_vector_right).Add(z_vector_bottom)
+        self.barras_side = [Line.CreateBound(p_side1 , p_side2)]
+
+    def estribos(self, indice):
 
         l1_est = []
         l2_est = []
@@ -95,9 +106,9 @@ class Viga(Element):
         if indice == 0:
            x_est = -self.cut_comprimento/2
         elif indice == 1:
-            x_est = -self.cut_comprimento/2 + cc + espacamento
+            x_est = -self.cut_comprimento/2 + self.cc + self.estribo_espacamento
         elif indice == 2:
-            x_est = self.cut_comprimento/2 - cc
+            x_est = self.cut_comprimento/2 - self.cc
         y_est_left = -self.largura/2 + self.cover_length
         y_est_right = -1*y_est_left
         z_est_top = self.altura/2 - self.cover_length
