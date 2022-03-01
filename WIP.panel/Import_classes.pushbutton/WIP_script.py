@@ -19,7 +19,7 @@ clr.AddReference('RevitAPIUI')
 from Autodesk.Revit.UI import *
 import math
 
-from classes import Element, Viga
+from classes import Element, Viga, Pilar
     
 def ciclo(x):
     return range(len(x))
@@ -88,7 +88,7 @@ v_z = []
 doc = __revit__.ActiveUIDocument.Document
 
 collector = FilteredElementCollector(doc)
-filtro = ElementCategoryFilter(BuiltInCategory.OST_StructuralFraming)
+filtro = ElementCategoryFilter(BuiltInCategory.OST_StructuralColumns)
 elements = collector.WherePasses(filtro).WhereElementIsNotElementType().ToElements()
 
 collector_rebar = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Rebar).WhereElementIsElementType()
@@ -99,7 +99,7 @@ hooks = collector_hooks.ToElements()
 
 # Elementos a armar
 
-ele_rebar = [Viga(doc, element) for element in elements if element.LookupParameter("Comments").AsString() == "Armar"]
+ele_rebar = [Pilar(doc, element) for element in elements if element.LookupParameter("Comments").AsString() == "Armar"]
 
 for i in ciclo(ele_rebar):
 
@@ -110,18 +110,18 @@ for i in ciclo(ele_rebar):
         ele_rebar[i].estribos(0)
         estribo.append(ele_rebar[i].estribo)
         elementos.append(ele_rebar[i].elemento)
-        v_x.append(ele_rebar[i].vectorX)
-        comp.append(ele_rebar[i].cut_comprimento)
+        v_x.append(ele_rebar[i].vectorZ)
+        comp.append(ele_rebar[i].cmp)
         spacing.append(ele_rebar[i].estribo_espacamento)
         estribo_diameter.append(ele_rebar[i].diametro_estribo)
         
-    elif ele_rebar[i].bol == "Y" and ele_rebar[i].cut_comprimento <= buffer*ele_rebar[i].cc:
+    elif ele_rebar[i].bol == "Y" and ele_rebar[i].cmp <= buffer*ele_rebar[i].cc:
     
         ele_rebar[i].estribos(0)
         estribo.append(ele_rebar[i].estribo)
         elementos.append(ele_rebar[i].elemento)
-        v_x.append(ele_rebar[i].vectorX)
-        comp.append(ele_rebar[i].cut_comprimento)
+        v_x.append(ele_rebar[i].vectorZ)
+        comp.append(ele_rebar[i].cmp)
         spacing.append(ele_rebar[i].est_ext_espacamento)
         estribo_diameter.append(ele_rebar[i].est_ext_diametro)
         
@@ -130,7 +130,7 @@ for i in ciclo(ele_rebar):
         ele_rebar[i].estribos(0)
         estribo.append(ele_rebar[i].estribo)
         elementos.append(ele_rebar[i].elemento)
-        v_x.append(ele_rebar[i].vectorX)
+        v_x.append(ele_rebar[i].vectorZ)
         comp.append(ele_rebar[i].cc)
         spacing.append(ele_rebar[i].est_ext_espacamento)
         estribo_diameter.append(ele_rebar[i].est_ext_diametro)
@@ -138,7 +138,7 @@ for i in ciclo(ele_rebar):
         ele_rebar[i].estribos(1)
         estribo.append(ele_rebar[i].estribo)
         elementos.append(ele_rebar[i].elemento)
-        v_x.append(ele_rebar[i].vectorX)
+        v_x.append(ele_rebar[i].vectorZ)
         comp.append(ele_rebar[i].cnc)
         spacing.append(ele_rebar[i].estribo_espacamento)
         estribo_diameter.append(ele_rebar[i].diametro_estribo)
@@ -146,7 +146,7 @@ for i in ciclo(ele_rebar):
         ele_rebar[i].estribos(2)
         estribo.append(ele_rebar[i].estribo)
         elementos.append(ele_rebar[i].elemento)
-        v_x.append(ele_rebar[i].vectorX)
+        v_x.append(ele_rebar[i].vectorZ)
         comp.append(ele_rebar[i].cc)
         spacing.append(ele_rebar[i].est_ext_espacamento)
         estribo_diameter.append(ele_rebar[i].est_ext_diametro)
@@ -159,32 +159,32 @@ for i in ciclo(ele_rebar):
     ele_rebar[i].barras(rebar_bar_diameter[i])
     bar.append(ele_rebar[i].barras_bot)  
     elementos_bar.append(ele_rebar[i].elemento)
-    v_y.append(ele_rebar[i].vectorY)
-    bar_diameter.append(ele_rebar[i].bi_diametro)
-    bar_number.append(ele_rebar[i].nr_bi)
-    array.append(ele_rebar[i].array_length(rebar_bar_diameter[i]))
+    v_y.append(ele_rebar[i].vectorX)
+    bar_diameter.append(ele_rebar[i].b_diametro)
+    bar_number.append(ele_rebar[i].nr_b)
+    array.append(ele_rebar[i].b_array_length(rebar_bar_diameter[i]))
     bar.append(ele_rebar[i].barras_top)
     elementos_bar.append(ele_rebar[i].elemento)
-    v_y.append(ele_rebar[i].vectorY)
-    bar_diameter.append(ele_rebar[i].bs_diametro)
-    bar_number.append(ele_rebar[i].nr_bs)
-    array.append(ele_rebar[i].array_length(rebar_bar_diameter[i]))
+    v_y.append(ele_rebar[i].vectorX)
+    bar_diameter.append(ele_rebar[i].b_diametro)
+    bar_number.append(ele_rebar[i].nr_b)
+    array.append(ele_rebar[i].b_array_length(rebar_bar_diameter[i]))
 
-    if ele_rebar[i].nr_bl > 2:
+    if ele_rebar[i].nr_h > 2:
 
         ele_rebar[i].barras(rebar_bar_diameter[i])
         sidebar.append(ele_rebar[i].barras_side)  
         elementos_sidebar.append(ele_rebar[i].elemento)
-        v_z.append(ele_rebar[i].vectorZ)
-        sidebar_diameter.append(ele_rebar[i].bl_diametro)
-        sidebar_number.append(ele_rebar[i].nr_bl)
-        sidearray.append(ele_rebar[i].sidearray_length(rebar_bar_diameter[i]))
+        v_z.append(ele_rebar[i].vectorY)
+        sidebar_diameter.append(ele_rebar[i].b_diametro)
+        sidebar_number.append(ele_rebar[i].nr_h)
+        sidearray.append(ele_rebar[i].h_array_length(rebar_bar_diameter[i]))
         sidebar.append(ele_rebar[i].barras_bot)
         elementos_sidebar.append(ele_rebar[i].elemento)
-        v_z.append(ele_rebar[i].vectorZ)
-        sidebar_diameter.append(ele_rebar[i].bl_diametro)
-        sidebar_number.append(ele_rebar[i].nr_bl)
-        sidearray.append(ele_rebar[i].sidearray_length(rebar_bar_diameter[i]))
+        v_z.append(ele_rebar[i].vectorY)
+        sidebar_diameter.append(ele_rebar[i].b_diametro)
+        sidebar_number.append(ele_rebar[i].nr_h)
+        sidearray.append(ele_rebar[i].h_array_length(rebar_bar_diameter[i]))
 
 rebar_bar = rebar_type(rebars, bar_diameter, 0)
 rebar_sidebar = rebar_type(rebars, sidebar_diameter, 0)
@@ -192,10 +192,10 @@ rebar_sidebar = rebar_type(rebars, sidebar_diameter, 0)
 t = Transaction(doc, "Armaduras")
 t.Start()
 
-for i in ciclo(elementos):
+#for i in ciclo(elementos):
     
-    estribos = rebar_estribos(elementos[i], v_x[i], rebar_stir[i], rebar_hook(hooks), estribo[i])
-    estribo_esp = estribos.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(spacing[i], comp[i], True ,True ,True)
+#    estribos = rebar_estribos(elementos[i], v_x[i], rebar_stir[i], rebar_hook(hooks), estribo[i])
+#    estribo_esp = estribos.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(spacing[i], comp[i], True ,True ,True)
 
 for i in ciclo(elementos_bar):
 

@@ -6,7 +6,7 @@ Tentar usar parent class and child classes
 import clr
 import Revit
 clr.AddReference("RevitAPI")
-from Autodesk.Revit.DB import UnitUtils, UnitTypeId, Line
+from Autodesk.Revit.DB import *
 
 def flatten(t):
     return [item for sublist in t for item in sublist]
@@ -164,34 +164,34 @@ class Pilar(Element):
 
     def barras(self, d_estribo):
         
-        xi = -self.cmp/2
-        xf = -1*xi
+        xi = self.origem
+        xf = self.cmp
         y_left = -self.b/2 + self.cover_length + d_estribo
         y_right = -1*y_left
         z_top = self.h/2 - self.cover_length - d_estribo
         z_bottom = -1*z_top
 
-        x_vector_i = self.vectorX.Multiply(xi)
-        x_vector_f = self.vectorX.Multiply(xf)
-        y_vector_left = self.vectorY.Multiply(y_left)
-        y_vector_right = self.vectorY.Multiply(y_right)
-        z_vector_top = self.vectorZ.Multiply(z_top)
-        z_vector_bottom = self.vectorZ.Multiply(z_bottom)
+        z_vector_i = self.vectorZ
+        z_vector_f = self.vectorZ.Multiply(xf)
+        x_vector_left = self.vectorX.Multiply(y_left)
+        x_vector_right = self.vectorX.Multiply(y_right)
+        y_vector_top = self.vectorY.Multiply(z_top)
+        y_vector_bottom = self.vectorY.Multiply(z_bottom)
 
         # Pontos e linha para definir a barra inferior
 
-        p_inf1 = self.origem.Add(x_vector_i).Add(y_vector_left).Add(z_vector_bottom)
-        p_inf2 = self.origem.Add(x_vector_f).Add(y_vector_left).Add(z_vector_bottom)
+        p_inf1 = self.origem.Add(x_vector_left).Add(y_vector_bottom)
+        p_inf2 = self.origem.Add(z_vector_f).Add(x_vector_left).Add(y_vector_bottom)
         self.barras_bot = [Line.CreateBound(p_inf1 , p_inf2)]
 
         # Pontos e linha para definir a barra inferior
 
-        p_top1 = self.origem.Add(x_vector_i).Add(y_vector_left).Add(z_vector_top)
-        p_top2 = self.origem.Add(x_vector_f).Add(y_vector_left).Add(z_vector_top)
+        p_top1 = self.origem.Add(x_vector_left).Add(y_vector_top)
+        p_top2 = self.origem.Add(z_vector_f).Add(x_vector_left).Add(y_vector_top)
         self.barras_top = [Line.CreateBound(p_top1 , p_top2)]
 
-        p_side1 = self.origem.Add(x_vector_i).Add(y_vector_right).Add(z_vector_bottom)
-        p_side2 = self.origem.Add(x_vector_f).Add(y_vector_right).Add(z_vector_bottom)
+        p_side1 = self.origem.Add(x_vector_right).Add(y_vector_bottom)
+        p_side2 = self.origem.Add(z_vector_f).Add(x_vector_right).Add(y_vector_bottom)
         self.barras_side = [Line.CreateBound(p_side1 , p_side2)]
 
     def estribos(self, indice):
@@ -202,11 +202,11 @@ class Pilar(Element):
         l4_est = []
 
         if indice == 0:
-           x_est = -self.cmp/2
+           x_est = 0
         elif indice == 1:
-            x_est = -self.cmp/2 + self.cc + self.estribo_espacamento
+            x_est = self.cc + self.estribo_espacamento
         elif indice == 2:
-            x_est = self.cmp/2 - self.cc
+            x_est = self.cmp - self.cc
         y_est_left = -self.b/2 + self.cover_length
         y_est_right = -1*y_est_left
         z_est_top = self.h/2 - self.cover_length
