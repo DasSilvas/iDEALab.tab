@@ -155,6 +155,10 @@ class Pilar(Element):
         self.est_ext_espacamento = Funk.internal_units(int(rdc[7]))
         self.cc = Funk.internal_units(int(rdc[8]))
         self.cnc = self.cmp - 2*(self.cc + self.estribo_espacamento)
+        lvl = doc.GetElement(self.elemento.LookupParameter("Base Level").AsElementId())
+        base_offset = self.elemento.LookupParameter("Base Offset").AsDouble()
+        base_lvl = lvl.LookupParameter("Elevation").AsDouble()
+        self.z = base_lvl + base_offset
 
     def b_array_length(self, d_estribo):
         return self.b - 2*(self.cover_length + d_estribo)
@@ -164,14 +168,14 @@ class Pilar(Element):
 
     def barras(self, d_estribo):
         
-        xi = self.origem
-        xf = self.cmp
+        xi = self.z
+        xf = self.cmp + xi
         y_left = -self.b/2 + self.cover_length + d_estribo
         y_right = -1*y_left
         z_top = self.h/2 - self.cover_length - d_estribo
         z_bottom = -1*z_top
 
-        z_vector_i = self.vectorZ
+        z_vector_i = self.vectorZ.Multiply(xi)
         z_vector_f = self.vectorZ.Multiply(xf)
         x_vector_left = self.vectorX.Multiply(y_left)
         x_vector_right = self.vectorX.Multiply(y_right)
@@ -180,17 +184,17 @@ class Pilar(Element):
 
         # Pontos e linha para definir a barra inferior
 
-        p_inf1 = self.origem.Add(x_vector_left).Add(y_vector_bottom)
+        p_inf1 = self.origem.Add(z_vector_i).Add(x_vector_left).Add(y_vector_bottom)
         p_inf2 = self.origem.Add(z_vector_f).Add(x_vector_left).Add(y_vector_bottom)
         self.barras_bot = [Line.CreateBound(p_inf1 , p_inf2)]
 
         # Pontos e linha para definir a barra inferior
 
-        p_top1 = self.origem.Add(x_vector_left).Add(y_vector_top)
+        p_top1 = self.origem.Add(z_vector_i).Add(x_vector_left).Add(y_vector_top)
         p_top2 = self.origem.Add(z_vector_f).Add(x_vector_left).Add(y_vector_top)
         self.barras_top = [Line.CreateBound(p_top1 , p_top2)]
 
-        p_side1 = self.origem.Add(x_vector_right).Add(y_vector_bottom)
+        p_side1 = self.origem.Add(z_vector_i).Add(x_vector_right).Add(y_vector_bottom)
         p_side2 = self.origem.Add(z_vector_f).Add(x_vector_right).Add(y_vector_bottom)
         self.barras_side = [Line.CreateBound(p_side1 , p_side2)]
 
@@ -202,26 +206,26 @@ class Pilar(Element):
         l4_est = []
 
         if indice == 0:
-           x_est = 0
+           z_est = self.z
         elif indice == 1:
-            x_est = self.cc + self.estribo_espacamento
+            z_est = self.z + self.cc + self.estribo_espacamento
         elif indice == 2:
-            x_est = self.cmp - self.cc
-        y_est_left = -self.b/2 + self.cover_length
-        y_est_right = -1*y_est_left
-        z_est_top = self.h/2 - self.cover_length
-        z_est_bottom = -1*z_est_top
+            z_est = self.z + self.cmp - self.cc
+        x_est_left = -self.b/2 + self.cover_length
+        x_est_right = -1*x_est_left
+        y_est_top = self.h/2 - self.cover_length
+        y_est_bottom = -1*y_est_top
     
-        x_vector = self.vectorX.Multiply(x_est)
-        y_vector_left = self.vectorY.Multiply(y_est_left)
-        y_vector_right = self.vectorY.Multiply(y_est_right)
-        z_vector_top = self.vectorZ.Multiply(z_est_top)
-        z_vector_bottom = self.vectorZ.Multiply(z_est_bottom)
+        z_vector = self.vectorZ.Multiply(z_est)
+        x_vector_left = self.vectorX.Multiply(x_est_left)
+        x_vector_right = self.vectorX.Multiply(x_est_right)
+        y_vector_top = self.vectorY.Multiply(y_est_top)
+        y_vector_bottom = self.vectorY.Multiply(y_est_bottom)
     
-        p1_est = self.origem.Add(x_vector).Add(y_vector_right).Add(z_vector_top)
-        p2_est = self.origem.Add(x_vector).Add(y_vector_right).Add(z_vector_bottom)
-        p3_est = self.origem.Add(x_vector).Add(y_vector_left).Add(z_vector_bottom)
-        p4_est = self.origem.Add(x_vector).Add(y_vector_left).Add(z_vector_top)
+        p1_est = self.origem.Add(z_vector).Add(x_vector_right).Add(y_vector_top)
+        p2_est = self.origem.Add(z_vector).Add(x_vector_right).Add(y_vector_bottom)
+        p3_est = self.origem.Add(z_vector).Add(x_vector_left).Add(y_vector_bottom)
+        p4_est = self.origem.Add(z_vector).Add(x_vector_left).Add(y_vector_top)
     
         l1_est.append(Line.CreateBound(p1_est , p2_est))
         l2_est.append(Line.CreateBound(p2_est , p3_est))

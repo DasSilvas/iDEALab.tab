@@ -19,7 +19,7 @@ clr.AddReference('RevitAPIUI')
 from Autodesk.Revit.UI import *
 import math
 
-from classes import Element, Viga, Pilar
+from classes import Element, Pilar
     
 def ciclo(x):
     return range(len(x))
@@ -57,7 +57,7 @@ def rebar_bars(elementos, vector, estilo, curvas):
     return Rebar.CreateFromCurves(doc, RebarStyle.Standard, estilo, None, None, elementos, vector, curvas, RebarHookOrientation.Right, RebarHookOrientation.Left, True, True)
 
 elementos = []
-buffer = 2.1
+buffer = 2.5
 
 #Recipientes para a excucao dos estribos
 
@@ -192,10 +192,10 @@ rebar_sidebar = rebar_type(rebars, sidebar_diameter, 0)
 t = Transaction(doc, "Armaduras")
 t.Start()
 
-#for i in ciclo(elementos):
+for i in ciclo(elementos):
     
-#    estribos = rebar_estribos(elementos[i], v_x[i], rebar_stir[i], rebar_hook(hooks), estribo[i])
-#    estribo_esp = estribos.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(spacing[i], comp[i], True ,True ,True)
+    estribos = rebar_estribos(elementos[i], v_x[i], rebar_stir[i], rebar_hook(hooks), estribo[i])
+    estribo_esp = estribos.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(spacing[i], comp[i], True ,True ,True)
 
 for i in ciclo(elementos_bar):
 
@@ -206,5 +206,8 @@ for i in ciclo(elementos_sidebar):
 
     sidebars = rebar_bars(elementos_sidebar[i], v_z[i], rebar_sidebar[i], sidebar[i])
     sidebars_number = sidebars.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(sidebar_number[i], sidearray[i], True, False, False)
+
+print(comp)
+print(elementos)
     
 t.Commit()
