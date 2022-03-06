@@ -1,5 +1,10 @@
 # Load the Python Standard and DesignScript Libraries
 # -*- coding: utf-8 -*-
+
+__title__ = "Pilares"
+__doc__ = "Modelacao das armaduras a partir de codigo em Type Comments do elemento"
+__author__ = "Joao Ferreira, OE nº 86233"
+
 import clr
 clr.AddReference('ProtoGeometry')
 clr.AddReference("RevitNodes")
