@@ -1,0 +1,8 @@
+{
+    "python.autoComplete.extraPaths": ["C:\\Users\\hp\\Dropbox\\03-Revit Things\\03-Python\\ironpython-stubs-master\\release\\stubs.min"
+    
+    ],
+    "python.analysis.extraPaths": [
+        "C:\\Users\\hp\\Dropbox\\03-Revit Things\\03-Python\\ironpython-stubs-master\\release\\stubs.min"
+    ]
+}

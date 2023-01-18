@@ -32,7 +32,11 @@ class Element:
         self.vectorX = elemento.GetTransform().BasisX
         self.vectorY = elemento.GetTransform().BasisY
         self.vectorZ = elemento.GetTransform().BasisZ
+        self.bbox = elemento.get_BoundingBox(None)
+        self.name = elemento.Name
 
+
+    
 class Viga(Element):
 
     def __init__(self, doc, elemento):
@@ -42,22 +46,6 @@ class Viga(Element):
         self.altura = self.type.LookupParameter("h").AsDouble()
         self.cut_comprimento = elemento.LookupParameter("Cut Length").AsDouble()
         self.comprimento = elemento.LookupParameter("Length").AsDouble()
-        self.covertype = doc.GetElement(elemento.LookupParameter("Rebar Cover - Other Faces").AsElementId())
-        self.cover_length = self.covertype.LookupParameter("Length").AsDouble()
-        rdc = self.code.split(".")
-        self.diametro_estribo = "Ø" + str(rdc[0])
-        self.estribo_espacamento = Funk.internal_units(int(rdc[1]))
-        self.bs_diametro = "Ø" + str(rdc[2])
-        self.nr_bs = int(rdc[3])
-        self.bi_diametro = "Ø" + str(rdc[4])
-        self.nr_bi = int(rdc[5])
-        self.nr_bl = int(rdc[6])
-        self.bl_diametro = "Ø" + str(rdc[7])
-        self.bol = str(rdc[8])
-        self.est_ext_diametro = "Ø" + str(rdc[9])
-        self.est_ext_espacamento = Funk.internal_units(int(rdc[10]))
-        self.cc = Funk.internal_units(int(rdc[11]))
-        self.cnc = self.cut_comprimento - 2*(self.cc + self.estribo_espacamento)
 
     def array_length(self, d_estribo):
         return self.largura - 2*(self.cover_length + d_estribo)
@@ -133,10 +121,19 @@ class Viga(Element):
         lines = [l1_est , l2_est , l3_est , l4_est]
         self.estribo = flatten([list(x1) for x1 in zip(*lines)])
 
+    def vista(self):
+        
+        xi = -self.comprimento/2 - 1
+        xf = -1*xi
+        z_top = self.altura/2 -1
+        z_bottom = -1*z_top
+        y = self.largura/2 + 1
+        self.bbmin = XYZ(xi, z_bottom, 0)
+        self.bbmax = XYZ(xf, z_top, y)
+
 class Pilar(Element):
 
     def __init__(self, doc, elemento):
-
         Element.__init__(self, doc, elemento)
         self.b = self.type.LookupParameter("b").AsDouble()
         self.h = self.type.LookupParameter("h").AsDouble()
@@ -148,6 +145,7 @@ class Pilar(Element):
         self.diametro_estribo = "Ø" + str(rdc[0])
         self.estribo_espacamento = Funk.internal_units(int(rdc[1]))
         self.b_diametro = "Ø" + str(rdc[2])
+        self.b_varao = Funk.internal_units(int(rdc[2]))
         self.nr_b = int(rdc[3])
         self.nr_h = int(rdc[4])
         self.bol = str(rdc[5])
@@ -198,7 +196,56 @@ class Pilar(Element):
         p_side2 = self.origem.Add(z_vector_f).Add(x_vector_right).Add(y_vector_bottom)
         self.barras_side = [Line.CreateBound(p_side1 , p_side2)]
 
-    def estribos(self, indice):
+    def barras_fund(self, d_estribo, altura=0, recobrimento=0.50, varao_sapata=0, varao_pilar=0):
+        
+        xi = self.z
+        xi1 = self.z - (altura - recobrimento - varao_sapata)
+        xi2 = self.z - (altura - recobrimento - varao_sapata - 2*varao_pilar)
+        xi3 = self.z - (altura - recobrimento - varao_sapata - 3*varao_pilar)
+        xi4 = self.z - (altura - recobrimento - varao_sapata - 4*varao_pilar)
+        xf = self.cmp + xi
+        y_left = -self.b/2 + self.cover_length + d_estribo
+        y_right = -1*y_left
+        z_top = self.h/2 - self.cover_length - d_estribo
+        z_bottom = -1*z_top
+
+        #Face 1 do pilar vai ate ao maximo
+        z_vector_i1 = self.vectorZ.Multiply(xi1)
+        z_vector_i2 = self.vectorZ.Multiply(xi2)
+        z_vector_i3 = self.vectorZ.Multiply(xi3)
+        z_vector_i4 = self.vectorZ.Multiply(xi4)
+        z_vector_f = self.vectorZ.Multiply(xf)
+        x_vector_left = self.vectorX.Multiply(y_left)
+        x_vector_right = self.vectorX.Multiply(y_right)
+        y_vector_top = self.vectorY.Multiply(z_top)
+        y_vector_topn = self.vectorY_n.Multiply(z_top)
+        y_vector_bottom = self.vectorY.Multiply(z_bottom)
+
+        #Linhas para fazer a face 1
+
+        p_inf1 = self.origem.Add(z_vector_i1).Add(x_vector_left).Add(y_vector_bottom)
+        p_inf2 = self.origem.Add(z_vector_f).Add(x_vector_left).Add(y_vector_bottom)
+        self.barras_f1 = [Line.CreateBound(p_inf1 , p_inf2)]
+
+        #Linhas para fazer a face 2
+
+        p_top1 = self.origem.Add(z_vector_i2).Add(x_vector_left).Add(y_vector_top)
+        p_top2 = self.origem.Add(z_vector_f).Add(x_vector_left).Add(y_vector_top)
+        self.barras_f2 = [Line.CreateBound(p_top1 , p_top2)]
+
+        #Linhas para fazer a face 3
+
+        p_side1 = self.origem.Add(z_vector_i3).Add(x_vector_right).Add(y_vector_bottom)
+        p_side2 = self.origem.Add(z_vector_f).Add(x_vector_right).Add(y_vector_bottom)
+        self.barras_f3 = [Line.CreateBound(p_side1 , p_side2)]
+
+        #Linhas para fazer a face 4
+
+        p_side3 = self.origem.Add(z_vector_i4).Add(x_vector_left).Add(y_vector_bottom)
+        p_side4 = self.origem.Add(z_vector_f).Add(x_vector_left).Add(y_vector_bottom)
+        self.barras_f4 = [Line.CreateBound(p_side3 , p_side4)]
+
+    def estribos(self, indice, altura=0, varao_sapata=0, n=0, varao_pilar_b=0, m=0, varao_pilar_h=0):
 
         l1_est = []
         l2_est = []
@@ -206,9 +253,9 @@ class Pilar(Element):
         l4_est = []
 
         if indice == 0:
-           z_est = self.z
+           z_est = self.z - (altura - 2*varao_sapata - n*varao_pilar_b - (m*varao_pilar_h))
         elif indice == 1:
-            z_est = self.z + self.cc + self.estribo_espacamento
+            z_est = self.z + self.cc + self.estribo_espacamento - (altura - 2*varao_sapata - n*varao_pilar_b - (m*varao_pilar_h))
         elif indice == 2:
             z_est = self.z + self.cmp - self.cc
         x_est_left = -self.b/2 + self.cover_length
@@ -233,3 +280,28 @@ class Pilar(Element):
         l4_est.append(Line.CreateBound(p4_est , p1_est))
         lines = [l1_est , l2_est , l3_est , l4_est]
         self.estribo = flatten([list(x1) for x1 in zip(*lines)])
+
+    def cc_fund(self,altura=0, varao_sapata=0, n=0, varao_pilar_b=0, m=0, varao_pilar_h=0):
+        cc_sapata = self.cc + (altura - 2*varao_sapata - n*varao_pilar_b - (m*varao_pilar_h))
+        return cc_sapata
+
+class Sapata(Element):
+        
+    def __init__(self, doc, elemento):
+
+        # Este parametro serve para distinguir das fundacoes que sao Isolated ou se sao modeladas como Slabs
+        self.elemento = elemento
+        floor = elemento.get_Parameter(BuiltInParameter.FLOOR_PARAM_IS_STRUCTURAL)
+
+        if floor is not None:
+
+            self.altura = elemento.LookupParameter("Thickness").AsDouble()
+            self.largura = elemento.LookupParameter("Width").AsDouble()
+            self.comprimento = elemento.LookupParameter("Length").AsDouble()
+
+        else:
+
+            Element.__init__(self, doc, elemento)
+            self.largura = self.type.LookupParameter("Width").AsDouble()
+            self.altura = self.type.LookupParameter("Thickness").AsDouble()
+            self.comprimento = self.type.LookupParameter("Length").AsDouble()
