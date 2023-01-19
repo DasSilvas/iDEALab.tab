@@ -4,6 +4,9 @@
 __title__ = "Pilares"
 __doc__ = "Modelacao das armaduras a partir de codigo em Type Comments do elemento"
 __author__ = "Joao Ferreira, OE nº 86233"
+from datetime import datetime
+
+start_time = datetime.now()
 
 import clr
 clr.AddReference('ProtoGeometry')
@@ -24,8 +27,10 @@ clr.AddReference('RevitAPIUI')
 from Autodesk.Revit.UI import *
 import math
 
-from classes import Element, Pilar
-    
+from classes import Element, Pilar, Sapata, Viga, Funk
+from classes import RvtApiCategory as cat
+from classes import RvtParameterName as para
+
 def ciclo(x):
     return range(len(x))
     
@@ -33,70 +38,47 @@ def rebar_type(list , diameters, index):
 
     #Esta funcao vais buscar o elemento varao segundo a lista diameters
 
-    output = []
-    diametros = []
     rebar_type = [rebar for rebar in list if rebar.FamilyName == "Rebar Bar"]
     rebar_typename = [rebar.LookupParameter("Type Name").AsString() for rebar in rebar_type]
 
-    for i in range(len(diameters)):
-        for j in range(len(rebar_typename)):
-            if rebar_typename[j] == diameters[i]:
-                output.append(rebar_type[j])
-                diametros.append(rebar_type[j].LookupParameter("Bar Diameter").AsDouble())
+    for j in range(len(rebar_typename)):
+        if rebar_typename[j] == diameters:
+            output = rebar_type[j]
+            diametros = rebar_type[j].LookupParameter("Bar Diameter").AsDouble()
                 
     if index == 0:
         return output
     elif index == 1:        
         return diametros
-	
-def rebar_hook(hooks):
+
+#rebar_stir_fund = rebar_type(rebars , pd[i].est_ext_diametro, 0)
+
+def rebar_hook(hooks, hook_name):
     for hook in hooks:
-        if hook.LookupParameter("Type Name").AsString() == "Stirrup/Tie Seismic - 135 deg.":
+        if hook.LookupParameter("Type Name").AsString() == hook_name:
             k = hook
     return k
-		    
+
 def rebar_estribos(elementos, vector, estilo, hooks, curvas):
     return Rebar.CreateFromCurves(doc, RebarStyle.StirrupTie, estilo, hooks, hooks, elementos, vector, curvas, RebarHookOrientation.Right, RebarHookOrientation.Right, True, True)
 
-def rebar_bars(elementos, vector, estilo, curvas):
-    return Rebar.CreateFromCurves(doc, RebarStyle.Standard, estilo, None, None, elementos, vector, curvas, RebarHookOrientation.Right, RebarHookOrientation.Left, True, True)
+def rebar_bars(elementos, vector, estilo, curvas, hk1, hk2):
+    return Rebar.CreateFromCurves(doc, RebarStyle.Standard, estilo, hk1, hk2, elementos, vector, curvas, RebarHookOrientation.Right, RebarHookOrientation.Left, True, True)
 
-elementos = []
 buffer = 2.5
 
-#Recipientes para a excucao dos estribos
-
-estribo = []
-v_x = [] # vector axial
-comp = [] # comprimento da distribuicao do estribo
-spacing = [] # espacamento do estribo
-estribo_diameter = [] # diametro do estribo
-
-#Recipientes para a excucao das barras
-bar = []
-bar_diameter = []
-bar_number = []
-array = []
-d_estribos = []
-elementos_bar = []
-v_y = []
-
-sidebar = []
-sidebar_diameter = []
-sidebar_number = []
-sidearray = []
-elementos_sidebar = []
-v_z = []
+vigas_fund_h = []
+vigas_h = []
 
 # Buscar os elementos necessarios atraves dos filtros
 
 doc = __revit__.ActiveUIDocument.Document
 
 collector = FilteredElementCollector(doc)
-filtro = ElementCategoryFilter(BuiltInCategory.OST_StructuralColumns)
+filtro = ElementCategoryFilter(cat.PILAR)
 elements = collector.WherePasses(filtro).WhereElementIsNotElementType().ToElements()
 
-collector_rebar = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Rebar).WhereElementIsElementType()
+collector_rebar = FilteredElementCollector(doc).OfCategory(cat.REBAR).WhereElementIsElementType()
 rebars = collector_rebar.ToElements()
 
 collector_hooks = FilteredElementCollector(doc).OfClass(RebarHookType).WhereElementIsElementType()
@@ -104,112 +86,143 @@ hooks = collector_hooks.ToElements()
 
 # Elementos a armar
 
-ele_rebar = [Pilar(doc, element) for element in elements if element.LookupParameter("Comments").AsString() == "Armar"]
+pilar = [Pilar(doc, element) for element in elements if element.LookupParameter("Comments").AsString() == "Armar"]
 
-for i in ciclo(ele_rebar):
+#Separa dos pilares de fundacao dos restantes, output das sapatas (sapatas), pilares que fazem par(pilares_fund) e os restentes pilares (pilares)
 
-    d_estribos.append(ele_rebar[i].diametro_estribo)
+sapatas, pd, p = Funk.get_element_cruza(pilar, doc, cat.FUNDACAO)
 
-    if ele_rebar[i].bol == "N":
-    
-        ele_rebar[i].estribos(0)
-        estribo.append(ele_rebar[i].estribo)
-        elementos.append(ele_rebar[i].elemento)
-        v_x.append(ele_rebar[i].vectorZ)
-        comp.append(ele_rebar[i].cmp)
-        spacing.append(ele_rebar[i].estribo_espacamento)
-        estribo_diameter.append(ele_rebar[i].diametro_estribo)
-        
-    elif ele_rebar[i].bol == "Y" and ele_rebar[i].cmp <= buffer*ele_rebar[i].cc:
-    
-        ele_rebar[i].estribos(0)
-        estribo.append(ele_rebar[i].estribo)
-        elementos.append(ele_rebar[i].elemento)
-        v_x.append(ele_rebar[i].vectorZ)
-        comp.append(ele_rebar[i].cmp)
-        spacing.append(ele_rebar[i].est_ext_espacamento)
-        estribo_diameter.append(ele_rebar[i].est_ext_diametro)
-        
-    else:
+sapatas = [Sapata(doc, sapata) for sapata in sapatas]
 
-        ele_rebar[i].estribos(0)
-        estribo.append(ele_rebar[i].estribo)
-        elementos.append(ele_rebar[i].elemento)
-        v_x.append(ele_rebar[i].vectorZ)
-        comp.append(ele_rebar[i].cc)
-        spacing.append(ele_rebar[i].est_ext_espacamento)
-        estribo_diameter.append(ele_rebar[i].est_ext_diametro)
-        
-        ele_rebar[i].estribos(1)
-        estribo.append(ele_rebar[i].estribo)
-        elementos.append(ele_rebar[i].elemento)
-        v_x.append(ele_rebar[i].vectorZ)
-        comp.append(ele_rebar[i].cnc)
-        spacing.append(ele_rebar[i].estribo_espacamento)
-        estribo_diameter.append(ele_rebar[i].diametro_estribo)
-        
-        ele_rebar[i].estribos(2)
-        estribo.append(ele_rebar[i].estribo)
-        elementos.append(ele_rebar[i].elemento)
-        v_x.append(ele_rebar[i].vectorZ)
-        comp.append(ele_rebar[i].cc)
-        spacing.append(ele_rebar[i].est_ext_espacamento)
-        estribo_diameter.append(ele_rebar[i].est_ext_diametro)
+vigas_fund, _, _ = Funk.get_element_cruza(pd, doc, cat.VIGA, "Mid")
 
-rebar_stir = rebar_type(rebars , estribo_diameter, 0)
-rebar_bar_diameter = rebar_type(rebars, d_estribos, 1)
+vigas, _, _ = Funk.get_element_cruza(p, doc, cat.VIGA, "Mid")
 
-for i in ciclo(ele_rebar):
+for beams in vigas_fund:
+    alturas = []
+    for beam in beams:
+        alturas.append(Viga(doc, beam).altura)
+    vigas_fund_h.append(max(alturas))
 
-    ele_rebar[i].barras(rebar_bar_diameter[i])
-    bar.append(ele_rebar[i].barras_bot)  
-    elementos_bar.append(ele_rebar[i].elemento)
-    v_y.append(ele_rebar[i].vectorX)
-    bar_diameter.append(ele_rebar[i].b_diametro)
-    bar_number.append(ele_rebar[i].nr_b)
-    array.append(ele_rebar[i].b_array_length(rebar_bar_diameter[i]))
-    bar.append(ele_rebar[i].barras_top)
-    elementos_bar.append(ele_rebar[i].elemento)
-    v_y.append(ele_rebar[i].vectorX)
-    bar_diameter.append(ele_rebar[i].b_diametro)
-    bar_number.append(ele_rebar[i].nr_b)
-    array.append(ele_rebar[i].b_array_length(rebar_bar_diameter[i]))
+for beams in vigas:
+    alturas = []
+    for beam in beams:
+        alturas.append(Viga(doc, beam).altura)
+    vigas_h.append(max(alturas))
 
-    if ele_rebar[i].nr_h > 2:
+# Buscar os parametros para os pilares que têm fundacao
 
-        ele_rebar[i].barras(rebar_bar_diameter[i])
-        sidebar.append(ele_rebar[i].barras_side)  
-        elementos_sidebar.append(ele_rebar[i].elemento)
-        v_z.append(ele_rebar[i].vectorY)
-        sidebar_diameter.append(ele_rebar[i].b_diametro)
-        sidebar_number.append(ele_rebar[i].nr_h)
-        sidearray.append(ele_rebar[i].h_array_length(rebar_bar_diameter[i]))
-        sidebar.append(ele_rebar[i].barras_bot)
-        elementos_sidebar.append(ele_rebar[i].elemento)
-        v_z.append(ele_rebar[i].vectorY)
-        sidebar_diameter.append(ele_rebar[i].b_diametro)
-        sidebar_number.append(ele_rebar[i].nr_h)
-        sidearray.append(ele_rebar[i].h_array_length(rebar_bar_diameter[i]))
-
-rebar_bar = rebar_type(rebars, bar_diameter, 0)
-rebar_sidebar = rebar_type(rebars, sidebar_diameter, 0)
+gancho_estribo = rebar_hook(hooks, para.HOOK_NAME_ESTRIBO)
+gancho_fund = rebar_hook(hooks, para.HOOK_NAME_FUND)
 
 t = Transaction(doc, "Armaduras")
 t.Start()
 
-for i in ciclo(elementos):
-    
-    estribos = rebar_estribos(elementos[i], v_x[i], rebar_stir[i], rebar_hook(hooks), estribo[i])
-    estribo_esp = estribos.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(spacing[i], comp[i], True ,True ,True)
+for i in ciclo(pd):
 
-for i in ciclo(elementos_bar):
+    rebar_bar_diameter_fund = rebar_type(rebars, pd[i].diametro_estribo, 1)
+    rebar_bar_fund = rebar_type(rebars, pd[i].b_diametro, 0)
 
-    bars = rebar_bars(elementos_bar[i], v_y[i], rebar_bar[i], bar[i])
-    bars_number = bars.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(bar_number[i], array[i], True, True, True)
-    
-for i in ciclo(elementos_sidebar):
+    pd[i].barras_fund(rebar_bar_diameter_fund, sapatas[i].altura, 0.328084, 0.0393701, pd[i].b_varao)
+    bars_fund1 = rebar_bars(pd[i].elemento, pd[i].vectorX, rebar_bar_fund, pd[i].barras_f1, gancho_fund, None)
+    bars_number_fund1 = bars_fund1.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(pd[i].nr_b, pd[i].b_array_length(rebar_bar_diameter_fund), True, True, True)
 
-    sidebars = rebar_bars(elementos_sidebar[i], v_z[i], rebar_sidebar[i], sidebar[i])
-    sidebars_number = sidebars.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(sidebar_number[i], sidearray[i], True, False, False)
-    
+    bars_fund2 = rebar_bars(pd[i].elemento, pd[i].vectorX, rebar_bar_fund, pd[i].barras_f2, gancho_fund, None)
+    bars_number_fund2 = bars_fund2.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(pd[i].nr_b, pd[i].b_array_length(rebar_bar_diameter_fund), True, True, True)
+    bars_fund2.LookupParameter(para.HOOK_ROTATION).Set(3.14159) 
+
+    if pd[i].nr_h > 2:
+
+        pd[i].barras_fund(rebar_bar_diameter_fund, sapatas[i].altura, 0.328084, 0.0393701, pd[i].b_varao)
+        bars_fund3 = rebar_bars(pd[i].elemento, pd[i].vectorY, rebar_bar_fund, pd[i].barras_f3, gancho_fund, None)
+        bars_number_fund3 = bars_fund3.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(pd[i].nr_h, pd[i].h_array_length(rebar_bar_diameter_fund), True, False, False)
+
+        bars_fund4 = rebar_bars(pd[i].elemento, pd[i].vectorY, rebar_bar_fund, pd[i].barras_f4, gancho_fund, None)
+        bars_number_fund4 = bars_fund4.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(pd[i].nr_h, pd[i].h_array_length(rebar_bar_diameter_fund), True, False, False)
+        bars_fund4.LookupParameter(para.HOOK_ROTATION).Set(3.14159)
+
+    if pd[i].bol == "N":
+
+        rebar_stir_fund = rebar_type(rebars , pd[i].est_ext_diametro, 0)
+        pd[i].estribos(0, sapatas[i].altura, 0.0393701, 2*pd[i].nr_b, pd[i].b_varao, 2*pd[i].nr_h, pd[i].b_varao)
+        estribos_fund = rebar_estribos(pd[i].elemento, pd[i].vectorZ, rebar_stir_fund, gancho_estribo, pd[i].estribo)
+        estribo_esp_fund = estribos_fund.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(pd[i].estribo_espacamento, pd[i].cmp, True ,True ,True)
+
+    elif pd[i].bol == "Y" and pd[i].cmp <= buffer*pd[i].cc + vigas_fund_h[i]:
+        
+        rebar_stir_fund = rebar_type(rebars , pd[i].est_ext_diametro, 0)
+        pd[i].estribos(0, sapatas[i].altura, 0.0393701, 2*pd[i].nr_b, pd[i].b_varao, 2*pd[i].nr_h, pd[i].b_varao)
+        estribos_fund = rebar_estribos(pd[i].elemento, pd[i].vectorZ, rebar_stir_fund, gancho_estribo, pd[i].estribo)
+        estribo_esp_fund = estribos_fund.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(pd[i].estribo_espacamento, pd[i].cmp, True ,True ,True)
+
+    else:
+        rebar_stir_fund = rebar_type(rebars , pd[i].est_ext_diametro, 0)
+        pd[i].estribos(0, sapatas[i].altura, 0.0393701, 2*pd[i].nr_b, pd[i].b_varao, 2*pd[i].nr_h, pd[i].b_varao)
+        pd[i].cc_fund(sapatas[i].altura, 0.0393701, 2*pd[i].nr_b, pd[i].b_varao, 2*pd[i].nr_h, pd[i].b_varao)
+        estribos_fund = rebar_estribos(pd[i].elemento, pd[i].vectorZ, rebar_stir_fund, gancho_estribo, pd[i].estribo)
+        estribo_esp_fund = estribos_fund.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(pd[i].est_ext_espacamento, pd[i].cc_sapata, True ,True ,True)
+        
+        pd[i].estribos(1)
+        estribos_fund = rebar_estribos(pd[i].elemento, pd[i].vectorZ, rebar_stir_fund, gancho_estribo, pd[i].estribo)
+        estribo_esp_fund = estribos_fund.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(pd[i].estribo_espacamento, pd[i].cnc_viga(vigas_fund_h[i]), True ,True ,True)
+        
+        pd[i].estribos(2, altura_viga=vigas_fund_h[i])
+        estribos_fund = rebar_estribos(pd[i].elemento, pd[i].vectorZ, rebar_stir_fund, gancho_estribo, pd[i].estribo)
+        estribo_esp_fund = estribos_fund.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(pd[i].est_ext_espacamento, pd[i].cc_viga(vigas_fund_h[i]), True ,True ,True)
+
+for i in ciclo(p):
+
+    rebar_bar_diameter = rebar_type(rebars, p[i].diametro_estribo, 1)
+    rebar_bar = rebar_type(rebars, p[i].b_diametro, 0)
+
+    p[i].barras(rebar_bar_diameter)
+    bars_bot = rebar_bars(p[i].elemento, p[i].vectorX, rebar_bar, p[i].barras_bot, None, None)
+    bars_number_bot = bars_bot.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(p[i].nr_b, p[i].b_array_length(rebar_bar_diameter), True, True, True)
+
+    bars_top = rebar_bars(p[i].elemento, p[i].vectorX, rebar_bar, p[i].barras_top, None, None)
+    bars_number_top = bars_top.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(p[i].nr_b, p[i].b_array_length(rebar_bar_diameter), True, True, True)
+
+    if p[i].nr_h > 2:
+
+        p[i].barras_fund(rebar_bar_diameter)
+        bars_side1 = rebar_bars(p[i].elemento, p[i].vectorY, rebar_bar, p[i].barras_side, None, None)
+        bars_number_side1 = bars_side1.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(p[i].nr_h, p[i].h_array_length(rebar_bar_diameter), True, False, False)
+
+        bars_side2 = rebar_bars(p[i].elemento, p[i].vectorY, rebar_bar, p[i].barras_bot, None, None)
+        bars_number_side2 = bars_side2.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(p[i].nr_h, p[i].h_array_length(rebar_bar_diameter), True, False, False)
+
+    if p[i].bol == "N":
+        
+        rebar_stir = rebar_type(rebars , p[i].est_ext_diametro, 0)
+        p[i].estribos(0)
+        estribos = rebar_estribos(p[i].elemento, p[i].vectorZ, rebar_stir, gancho_estribo, p[i].estribo)
+        estribo = estribos.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(p[i].estribo_espacamento, p[i].cmp, True ,True ,True)
+
+    elif p[i].bol == "Y" and p[i].cmp <= buffer*p[i].cc + vigas_h[i]:
+        
+        rebar_stir = rebar_type(rebars , p[i].est_ext_diametro, 0)
+        p[i].estribos(0)
+        estribos = rebar_estribos(p[i].elemento, p[i].vectorZ, rebar_stir, gancho_estribo, p[i].estribo)
+        estribo_esp = estribos.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(p[i].estribo_espacamento, p[i].cmp, True ,True ,True)
+
+    else:
+
+        rebar_stir = rebar_type(rebars , p[i].est_ext_diametro, 0)
+        p[i].estribos(0)
+        estribos = rebar_estribos(p[i].elemento, p[i].vectorZ, rebar_stir, gancho_estribo, p[i].estribo)
+        estribo_esp = estribos.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(p[i].est_ext_espacamento, p[i].cc, True ,True ,True)
+        
+        p[i].estribos(1)
+        estribos = rebar_estribos(p[i].elemento, p[i].vectorZ, rebar_stir, gancho_estribo, p[i].estribo)
+        estribo_esp = estribos.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(p[i].estribo_espacamento, p[i].cnc_viga(vigas_h[i]), True ,True ,True)
+        
+        p[i].estribos(2, altura_viga=vigas_h[i])
+        estribos = rebar_estribos(p[i].elemento, p[i].vectorZ, rebar_stir, gancho_estribo, p[i].estribo)
+        estribo_esp = estribos.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(p[i].est_ext_espacamento, p[i].cc_viga(vigas_h[i]), True ,True ,True)
+
 t.Commit()
+
+end_time = datetime.now()
+execution_time = end_time - start_time
+
+print("Runtime: {}".format(execution_time.total_seconds()))
