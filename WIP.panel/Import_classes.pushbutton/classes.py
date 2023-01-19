@@ -11,6 +11,20 @@ from Autodesk.Revit.DB import *
 def flatten(t):
     return [item for sublist in t for item in sublist]
 
+class RvtApiCategory:
+
+    FUNDACAO = BuiltInCategory.OST_StructuralFoundation
+    PILAR = BuiltInCategory.OST_StructuralColumns
+    FUNDACAO = BuiltInCategory.OST_StructuralFoundation
+    VIGA = BuiltInCategory.OST_StructuralFraming
+    REBAR = BuiltInCategory.OST_Rebar
+
+class RvtParameterName:
+
+    HOOK_NAME_ESTRIBO = "Stirrup/Tie Seismic - 135 deg."
+    HOOK_NAME_FUND = "50Ø"
+    HOOK_ROTATION = "Hook Rotation At Start"
+
 class Funk:
 
     @staticmethod
@@ -20,6 +34,48 @@ class Funk:
         elif unidade == "mm":
             x = UnitUtils.ConvertToInternalUnits(x , UnitTypeId.Millimeters)
         return x
+    
+    @staticmethod
+    def get_element_cruza(elementos, doc, alvo, bbox="Min"):
+
+        elemento_pares = []
+        elemento_alvo = []
+        elemento_impar = []
+
+        for elemento in elementos:
+
+            bbox_min = elemento.bbox.Min
+            bbox_max = elemento.bbox.Max
+            bbox_mid = XYZ(bbox_min.X, bbox_min.Y, bbox_min.Z + (bbox_max.Z - bbox_min.Z)/2 )
+
+            if bbox == "Mid":
+
+                outline = Outline(bbox_mid, bbox_max)
+
+            else:
+
+                outline = Outline(bbox_min, bbox_max)
+            
+            filter = BoundingBoxIntersectsFilter(outline)
+            elemento_cruza = FilteredElementCollector(doc).OfCategory(alvo).WherePasses(filter).ToElements()
+
+            if elemento_cruza:
+
+                if alvo == RvtApiCategory.FUNDACAO: 
+
+                    elemento_pares.append(elemento)
+                    elemento_alvo.append(elemento_cruza[0])
+
+                else:
+
+                    elemento_pares.append(elemento)
+                    elemento_alvo.append(elemento_cruza)
+
+            else:
+            
+                elemento_impar.append(elemento)
+
+        return elemento_alvo, elemento_pares, elemento_impar
 
 class Element:
 
@@ -34,8 +90,6 @@ class Element:
         self.vectorZ = elemento.GetTransform().BasisZ
         self.bbox = elemento.get_BoundingBox(None)
         self.name = elemento.Name
-
-
     
 class Viga(Element):
 
@@ -218,7 +272,6 @@ class Pilar(Element):
         x_vector_left = self.vectorX.Multiply(y_left)
         x_vector_right = self.vectorX.Multiply(y_right)
         y_vector_top = self.vectorY.Multiply(z_top)
-        y_vector_topn = self.vectorY_n.Multiply(z_top)
         y_vector_bottom = self.vectorY.Multiply(z_bottom)
 
         #Linhas para fazer a face 1
@@ -245,7 +298,7 @@ class Pilar(Element):
         p_side4 = self.origem.Add(z_vector_f).Add(x_vector_left).Add(y_vector_bottom)
         self.barras_f4 = [Line.CreateBound(p_side3 , p_side4)]
 
-    def estribos(self, indice, altura=0, varao_sapata=0, n=0, varao_pilar_b=0, m=0, varao_pilar_h=0):
+    def estribos(self, indice, altura=0, varao_sapata=0, n=0, varao_pilar_b=0, m=0, varao_pilar_h=0, altura_viga=0):
 
         l1_est = []
         l2_est = []
@@ -255,9 +308,9 @@ class Pilar(Element):
         if indice == 0:
            z_est = self.z - (altura - 2*varao_sapata - n*varao_pilar_b - (m*varao_pilar_h))
         elif indice == 1:
-            z_est = self.z + self.cc + self.estribo_espacamento - (altura - 2*varao_sapata - n*varao_pilar_b - (m*varao_pilar_h))
+            z_est = self.z + self.cc + self.estribo_espacamento
         elif indice == 2:
-            z_est = self.z + self.cmp - self.cc
+            z_est = self.z + self.cmp - (self.cc + altura_viga)
         x_est_left = -self.b/2 + self.cover_length
         x_est_right = -1*x_est_left
         y_est_top = self.h/2 - self.cover_length
@@ -282,8 +335,16 @@ class Pilar(Element):
         self.estribo = flatten([list(x1) for x1 in zip(*lines)])
 
     def cc_fund(self,altura=0, varao_sapata=0, n=0, varao_pilar_b=0, m=0, varao_pilar_h=0):
-        cc_sapata = self.cc + (altura - 2*varao_sapata - n*varao_pilar_b - (m*varao_pilar_h))
-        return cc_sapata
+        self.cc_sapata = self.cc + (altura - 2*varao_sapata - n*varao_pilar_b - (m*varao_pilar_h))
+        return self.cc_sapata
+
+    def cc_viga(self, altura_viga):
+        self.cc_viga = self.cc + altura_viga
+        return self.cc_viga
+
+    def cnc_viga(self, altura_viga):
+        self.cnc_viga = self.cnc - altura_viga
+        return self.cnc_viga
 
 class Sapata(Element):
         
