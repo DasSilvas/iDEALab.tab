@@ -7,6 +7,7 @@ import clr
 import Revit
 clr.AddReference("RevitAPI")
 from Autodesk.Revit.DB import *
+from Autodesk.Revit.DB.Structure import *
 
 def flatten(t):
     return [item for sublist in t for item in sublist]
@@ -15,15 +16,16 @@ class RvtApiCategory:
 
     FUNDACAO = BuiltInCategory.OST_StructuralFoundation
     PILAR = BuiltInCategory.OST_StructuralColumns
-    FUNDACAO = BuiltInCategory.OST_StructuralFoundation
     VIGA = BuiltInCategory.OST_StructuralFraming
     REBAR = BuiltInCategory.OST_Rebar
-
+    BAR_STANDART = RebarStyle.Standard
+    BAR_STIRRUP = RebarStyle.StirrupTie
 class RvtParameterName:
 
     HOOK_NAME_ESTRIBO = "Stirrup/Tie Seismic - 135 deg."
     HOOK_NAME_FUND = "50Ø"
     HOOK_ROTATION = "Hook Rotation At Start"
+    TYPE_COMMENTS = "Type Comments"
 
 class Funk:
 
@@ -90,7 +92,13 @@ class Element:
         self.vectorZ = elemento.GetTransform().BasisZ
         self.bbox = elemento.get_BoundingBox(None)
         self.name = elemento.Name
-    
+
+    def create_rebar_bar(self, doc, elementos, vector_normal, estilo, linhas, hook_i, hook_f):
+        return Rebar.CreateFromCurves(doc, RebarStyle.StirrupTie, estilo, hook_i, hook_f, elementos, vector_normal, linhas, RebarHookOrientation.Right, RebarHookOrientation.Right, True, True)
+
+    def create_rebar_estribo(self, doc, vector, estilo, curvas, hook_i, hook_f):
+        return Rebar.CreateFromCurves(doc, RebarStyle.Standard, estilo, hook_i, hook_f, self.elemento, vector, curvas, RebarHookOrientation.Right, RebarHookOrientation.Left, True, True)
+
 class Viga(Element):
 
     def __init__(self, doc, elemento):
@@ -366,3 +374,237 @@ class Sapata(Element):
             self.largura = self.type.LookupParameter("Width").AsDouble()
             self.altura = self.type.LookupParameter("Thickness").AsDouble()
             self.comprimento = self.type.LookupParameter("Length").AsDouble()
+            self.top_covertype = doc.GetElement(elemento.LookupParameter("Rebar Cover - Top Face").AsElementId())
+            self.top_cover_length = self.top_covertype.LookupParameter("Length").AsDouble()
+            self.bot_covertype = doc.GetElement(elemento.LookupParameter("Rebar Cover - Bottom Face").AsElementId())
+            self.bot_cover_length = self.bot_covertype.LookupParameter("Length").AsDouble()
+            rdc = self.code.split(".")
+            self.diametro_top_bar = "Ø" + str(rdc[0])
+            self.top_varao = Funk.internal_units(int(rdc[0]))
+            self.top_bar_espacamento = Funk.internal_units(int(rdc[1]))
+            self.diametro_bot_bar = "Ø" + str(rdc[2])
+            self.bot_varao = Funk.internal_units(int(rdc[2]))
+            self.bot_bar_espacamento = Funk.internal_units(int(rdc[3]))
+
+    def barras_bottom1(self):
+        
+        l1_est = []
+        l2_est = []
+        l3_est = []
+        l4_est = []
+
+        x_est = -self.largura/2 + self.top_cover_length
+        y_est_left = -self.comprimento/2 + self.top_cover_length
+        y_est_right = -1*y_est_left
+        z_est_top = -self.altura/2 + 5*self.bot_varao
+        z_est_bottom = -self.altura + self.bot_cover_length
+    
+        x_vector = self.vectorX.Multiply(x_est)
+        y_vector_left = self.vectorY.Multiply(y_est_left)
+        y_vector_right = self.vectorY.Multiply(y_est_right)
+        z_vector_top = self.vectorZ.Multiply(z_est_top)
+        z_vector_bottom = self.vectorZ.Multiply(z_est_bottom)
+    
+        p1_est = self.origem.Add(x_vector).Add(y_vector_right).Add(z_vector_top)
+        p2_est = self.origem.Add(x_vector).Add(y_vector_right).Add(z_vector_bottom)
+        p3_est = self.origem.Add(x_vector).Add(y_vector_left).Add(z_vector_bottom)
+        p4_est = self.origem.Add(x_vector).Add(y_vector_left).Add(z_vector_top)
+    
+        l1_est.append(Line.CreateBound(p1_est , p2_est))
+        l2_est.append(Line.CreateBound(p2_est , p3_est))
+        l3_est.append(Line.CreateBound(p3_est , p4_est))
+        l4_est.append(Line.CreateBound(p4_est , p1_est))
+        lines = [l1_est , l2_est , l3_est]
+        self.bot_bar1 = flatten([list(x1) for x1 in zip(*lines)])
+
+    def bot1_array_length(self):
+        return self.largura - 2*self.top_cover_length
+
+    def barras_bottom2(self):
+        
+        l1_est = []
+        l2_est = []
+        l3_est = []
+        l4_est = []
+
+        x_est_left = -self.largura/2 + self.top_cover_length
+        x_est_right = -1*x_est_left
+        y_est = -self.comprimento/2 + self.top_cover_length + 3*self.bot_varao
+        z_est_top = -self.altura/2 + 5*self.bot_varao
+        z_est_bottom = -self.altura + self.bot_cover_length + 1.5*self.bot_varao
+    
+        x_vector_left = self.vectorX.Multiply(x_est_left)
+        x_vector_right = self.vectorX.Multiply(x_est_right)
+        y_vector = self.vectorY.Multiply(y_est)
+        z_vector_top = self.vectorZ.Multiply(z_est_top)
+        z_vector_bottom = self.vectorZ.Multiply(z_est_bottom)
+    
+        p1_est = self.origem.Add(x_vector_right).Add(y_vector).Add(z_vector_top)
+        p2_est = self.origem.Add(x_vector_right).Add(y_vector).Add(z_vector_bottom)
+        p3_est = self.origem.Add(x_vector_left).Add(y_vector).Add(z_vector_bottom)
+        p4_est = self.origem.Add(x_vector_left).Add(y_vector).Add(z_vector_top)
+    
+        l1_est.append(Line.CreateBound(p1_est , p2_est))
+        l2_est.append(Line.CreateBound(p2_est , p3_est))
+        l3_est.append(Line.CreateBound(p3_est , p4_est))
+        l4_est.append(Line.CreateBound(p4_est , p1_est))
+        lines = [l1_est , l2_est , l3_est]
+        self.bot_bar2 = flatten([list(x1) for x1 in zip(*lines)])
+
+    def bot2_array_length(self):
+        return self.comprimento - 2*(self.top_cover_length + 3*self.bot_varao)
+
+    def barras_top1(self):
+        
+        l1_est = []
+        l2_est = []
+        l3_est = []
+        l4_est = []
+
+        x_est = -self.largura/2 + self.top_cover_length + 1.5*self.bot_varao
+        y_est_left = -self.comprimento/2 + self.top_cover_length + 1.5*self.bot_varao
+        y_est_right = -1*y_est_left
+        z_est_top = -self.top_cover_length
+        z_est_bottom = -(self.altura/2) - 5*self.bot_varao
+    
+        x_vector = self.vectorX.Multiply(x_est)
+        y_vector_left = self.vectorY.Multiply(y_est_left)
+        y_vector_right = self.vectorY.Multiply(y_est_right)
+        z_vector_top = self.vectorZ.Multiply(z_est_top)
+        z_vector_bottom = self.vectorZ.Multiply(z_est_bottom)
+    
+        p1_est = self.origem.Add(x_vector).Add(y_vector_right).Add(z_vector_bottom)
+        p2_est = self.origem.Add(x_vector).Add(y_vector_right).Add(z_vector_top)
+        p3_est = self.origem.Add(x_vector).Add(y_vector_left).Add(z_vector_top)
+        p4_est = self.origem.Add(x_vector).Add(y_vector_left).Add(z_vector_bottom)
+    
+        l1_est.append(Line.CreateBound(p1_est , p2_est))
+        l2_est.append(Line.CreateBound(p2_est , p3_est))
+        l3_est.append(Line.CreateBound(p3_est , p4_est))
+        l4_est.append(Line.CreateBound(p4_est , p1_est))
+        lines = [l1_est , l2_est , l3_est]
+        self.top_bar1 = flatten([list(x1) for x1 in zip(*lines)])
+
+    def top1_array_length(self):
+        return self.largura - 2*(self.top_cover_length + 1.5*self.bot_varao)
+
+    def barras_top2(self):
+        
+        l1_est = []
+        l2_est = []
+        l3_est = []
+        l4_est = []
+
+        x_est_left = -self.largura/2 + self.top_cover_length + 1.5*self.bot_varao
+        x_est_right = -1*x_est_left
+        y_est = -self.comprimento/2 + self.top_cover_length + 1.5*(1.5*self.bot_varao + self.top_varao)
+        z_est_top = -self.top_cover_length - 1.5*self.top_varao
+        z_est_bottom = -self.altura/2 - 5*self.bot_varao
+    
+        x_vector_left = self.vectorX.Multiply(x_est_left)
+        x_vector_right = self.vectorX.Multiply(x_est_right)
+        y_vector = self.vectorY.Multiply(y_est)
+        z_vector_top = self.vectorZ.Multiply(z_est_top)
+        z_vector_bottom = self.vectorZ.Multiply(z_est_bottom)
+    
+        p1_est = self.origem.Add(x_vector_right).Add(y_vector).Add(z_vector_bottom)
+        p2_est = self.origem.Add(x_vector_right).Add(y_vector).Add(z_vector_top)
+        p3_est = self.origem.Add(x_vector_left).Add(y_vector).Add(z_vector_top)
+        p4_est = self.origem.Add(x_vector_left).Add(y_vector).Add(z_vector_bottom)
+    
+        l1_est.append(Line.CreateBound(p1_est , p2_est))
+        l2_est.append(Line.CreateBound(p2_est , p3_est))
+        l3_est.append(Line.CreateBound(p3_est , p4_est))
+        l4_est.append(Line.CreateBound(p4_est , p1_est))
+        lines = [l1_est , l2_est , l3_est]
+        self.top_bar2 = flatten([list(x1) for x1 in zip(*lines)])
+
+    def top2_array_length(self):
+        return self.comprimento - 2*(self.top_cover_length + 1.5*(self.bot_varao + 1.5*self.top_varao))
+
+    def barras_lateral1(self):
+
+        x_est_left = -self.largura/2 + self.top_cover_length
+        x_est_right = -1*x_est_left
+        y_est_left = -self.comprimento/2 + self.top_cover_length + self.bot_varao + self.top_varao
+        y_est_right = -1*y_est_left
+        z_est_top = -self.altura/2 + 5*self.bot_varao - self.top_varao/2
+        z_est_bottom = -self.altura/2 - 5*self.bot_varao + self.top_varao/2
+    
+        x_vector_left = self.vectorX.Multiply(x_est_left)
+        x_vector_right = self.vectorX.Multiply(x_est_right)
+        y_vector_left = self.vectorY.Multiply(y_est_left)
+        y_vector_right = self.vectorY.Multiply(y_est_right)
+        z_vector_top = self.vectorZ.Multiply(z_est_top)
+        z_vector_bottom = self.vectorZ.Multiply(z_est_bottom)
+    
+        p1_est = self.origem.Add(x_vector_right).Add(y_vector_left).Add(z_vector_bottom)
+        p2_est = self.origem.Add(x_vector_left).Add(y_vector_left).Add(z_vector_bottom)
+        p3_est = self.origem.Add(x_vector_right).Add(y_vector_left).Add(z_vector_top)
+        p4_est = self.origem.Add(x_vector_left).Add(y_vector_left).Add(z_vector_top)
+
+        p5_est = self.origem.Add(x_vector_right).Add(y_vector_right).Add(z_vector_bottom)
+        p6_est = self.origem.Add(x_vector_left).Add(y_vector_right).Add(z_vector_bottom)
+        p7_est = self.origem.Add(x_vector_right).Add(y_vector_right).Add(z_vector_top)
+        p8_est = self.origem.Add(x_vector_left).Add(y_vector_right).Add(z_vector_top)
+    
+        self.lateral_bot1 = [Line.CreateBound(p1_est , p2_est)]
+        self.lateral_bot2 = [Line.CreateBound(p3_est , p4_est)]
+
+        self.lateral_bot3 = [Line.CreateBound(p5_est , p6_est)]
+        self.lateral_bot4 = [Line.CreateBound(p7_est , p8_est)]
+
+    def barras_lateral2(self):
+
+        x_est_left = -self.largura/2 + self.top_cover_length + self.bot_varao + self.top_varao
+        x_est_right = -1*x_est_left
+        y_est_left = -self.comprimento/2 + self.top_cover_length + self.bot_varao + self.top_varao
+        y_est_right = -1*y_est_left
+        z_est_top = -self.altura/2 + 5*self.bot_varao - 3*self.top_varao/2
+        z_est_bottom = -self.altura/2 - 5*self.bot_varao + 3*self.top_varao/2
+    
+        x_vector_left = self.vectorX.Multiply(x_est_left)
+        x_vector_right = self.vectorX.Multiply(x_est_right)
+        y_vector_left = self.vectorY.Multiply(y_est_left)
+        y_vector_right = self.vectorY.Multiply(y_est_right)
+        z_vector_top = self.vectorZ.Multiply(z_est_top)
+        z_vector_bottom = self.vectorZ.Multiply(z_est_bottom)
+    
+        p1_est = self.origem.Add(x_vector_left).Add(y_vector_right).Add(z_vector_bottom)
+        p2_est = self.origem.Add(x_vector_left).Add(y_vector_left).Add(z_vector_bottom)
+        p3_est = self.origem.Add(x_vector_left).Add(y_vector_right).Add(z_vector_top)
+        p4_est = self.origem.Add(x_vector_left).Add(y_vector_left).Add(z_vector_top)
+
+        p5_est = self.origem.Add(x_vector_right).Add(y_vector_right).Add(z_vector_bottom)
+        p6_est = self.origem.Add(x_vector_right).Add(y_vector_left).Add(z_vector_bottom)
+        p7_est = self.origem.Add(x_vector_right).Add(y_vector_right).Add(z_vector_top)
+        p8_est = self.origem.Add(x_vector_right).Add(y_vector_left).Add(z_vector_top)
+    
+        self.lateral_bot5 = [Line.CreateBound(p1_est , p2_est)]
+        self.lateral_bot6 = [Line.CreateBound(p3_est , p4_est)]
+
+        self.lateral_bot7 = [Line.CreateBound(p5_est , p6_est)]
+        self.lateral_bot8 = [Line.CreateBound(p7_est , p8_est)]
+
+
+class Rebares(Element):
+
+    def __init__(self, elemento):
+        self.elemento = elemento
+        self.familyname = elemento.FamilyName
+
+    def get_rebartype_byName(self, diametro):
+        if self.name == diametro:
+            return self.elemento
+    
+    def get_rebar_diameter(self):
+        return self.LookupParameter("Bar Diameter").AsDouble()
+
+    def get_rebarhook_byName(self, hook_name):
+        return next(hook for hook in self.elemento if hook.LookupParameter("Type Name").AsString() == hook_name)
+            
+    def set_rebar_number(self, nr, array_length, incluir_primeira_ultima_barras=True):
+        self.elemento.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(nr, array_length, True, incluir_primeira_ultima_barras, incluir_primeira_ultima_barras)
+
+    def set_rebar_spacing(self, spacing, array_length, incluir_primeira_ultima_barras=True):
+        self.elemento.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(spacing, array_length, True, incluir_primeira_ultima_barras, incluir_primeira_ultima_barras)
