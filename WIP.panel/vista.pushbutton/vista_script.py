@@ -48,15 +48,15 @@ t.Start()
 for viga in vigas:
 
     section_A = viga.criar_vista(doc, vista, 'Seccao A', OFFSET)
-    section_A.Name = "{} - Secção A".format(viga.nome)
+    section_A.Name = "3A - Secção {}A".format(viga.nome)
     sectiom_A_sheet = section_A.LookupParameter("Title on Sheet").Set('Secção {}A'.format(viga.nome))
 
     section_B = viga.criar_vista(doc, vista, 'Seccao B', OFFSET)
-    section_B.Name = "{} - Secção B".format(viga.nome)
+    section_B.Name = "3B - Secção {}B".format(viga.nome)
     sectiom_B_sheet = section_B.LookupParameter("Title on Sheet").Set('Secção {}B'.format(viga.nome))
 
     alcado = viga.criar_vista(doc, vista, 'Alcado', OFFSET)
-    alcado.Name = "{} - Corte".format(viga.nome)
+    alcado.Name = "3C - Corte {}".format(viga.nome)
     alcado_sheet = alcado.LookupParameter("Title on Sheet").Set('Corte {}'.format(viga.nome))
 
 t.Commit()
