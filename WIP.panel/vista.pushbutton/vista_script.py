@@ -20,6 +20,8 @@ from RevitServices.Transactions import TransactionManager
 clr.AddReference('RevitAPIUI')
 from Autodesk.Revit.UI import *
 
+from classes import Funk, Viga
+
 doc = __revit__.ActiveUIDocument.Document
 
 
@@ -36,19 +38,25 @@ def get_section(vistas):
 
 vista = get_section(ViewFamTypes).Id
 
-vigas = [element for element in elements if element.LookupParameter("Criar_vistas").AsInteger() == 1]
+vigas = [Viga(doc, element) for element in elements if element.LookupParameter("Criar_vistas").AsInteger() == 1]
+
+OFFSET = 0.65
 
 t = Transaction(doc, "vistas")
 t.Start()
 
 for viga in vigas:
 
-    section = ViewSection.CreateSection(doc, vista, viga.get_BoundingBox(None))
-    section.Name = 'Section View Along Beam'
-    #section.SetSectionBox(section_box)
+    section_A = viga.criar_vista(doc, vista, 'Seccao A', OFFSET)
+    section_A.Name = "{} - Secção A".format(viga.nome)
+    sectiom_A_sheet = section_A.LookupParameter("Title on Sheet").Set('Secção {}A'.format(viga.nome))
 
-    #view_range = view.get_Parameter(BuiltInParameter.VIEWER_BOUND_OFFSET_FAR).AsDouble()
-    #section_range = view_range / 2.0
-    #section.ViewRange = ViewRange(section_range - 10, section_range + 10)
+    section_B = viga.criar_vista(doc, vista, 'Seccao B', OFFSET)
+    section_B.Name = "{} - Secção B".format(viga.nome)
+    sectiom_B_sheet = section_B.LookupParameter("Title on Sheet").Set('Secção {}B'.format(viga.nome))
+
+    alcado = viga.criar_vista(doc, vista, 'Alcado', OFFSET)
+    alcado.Name = "{} - Corte".format(viga.nome)
+    alcado_sheet = alcado.LookupParameter("Title on Sheet").Set('Corte {}'.format(viga.nome))
 
 t.Commit()

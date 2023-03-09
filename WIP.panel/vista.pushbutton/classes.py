@@ -98,10 +98,27 @@ class Viga(Element):
     def __init__(self, doc, elemento):
 
         Element.__init__(self, doc, elemento)
+        self.nome = self.elemento.Name
         self.largura = self.type.LookupParameter("b").AsDouble()
         self.altura = self.type.LookupParameter("h").AsDouble()
         self.cut_comprimento = elemento.LookupParameter("Cut Length").AsDouble()
         self.comprimento = elemento.LookupParameter("Length").AsDouble()
+        self.covertype = doc.GetElement(elemento.LookupParameter("Rebar Cover - Other Faces").AsElementId())
+        self.cover_length = self.covertype.LookupParameter("Length").AsDouble()
+        rdc = self.code.split(".")
+        self.diametro_estribo = "Ø" + str(rdc[0])
+        self.estribo_espacamento = Funk.internal_units(int(rdc[1]))
+        self.bs_diametro = "Ø" + str(rdc[2])
+        self.nr_bs = int(rdc[3])
+        self.bi_diametro = "Ø" + str(rdc[4])
+        self.nr_bi = int(rdc[5])
+        self.nr_bl = int(rdc[6])
+        self.bl_diametro = "Ø" + str(rdc[7])
+        self.bol = str(rdc[8])
+        self.est_ext_diametro = "Ø" + str(rdc[9])
+        self.est_ext_espacamento = Funk.internal_units(int(rdc[10]))
+        self.cc = Funk.internal_units(int(rdc[11]))
+        self.cnc = self.cut_comprimento - 2*(self.cc + self.estribo_espacamento)
 
     def array_length(self, d_estribo):
         return self.largura - 2*(self.cover_length + d_estribo)
@@ -177,15 +194,47 @@ class Viga(Element):
         lines = [l1_est , l2_est , l3_est , l4_est]
         self.estribo = flatten([list(x1) for x1 in zip(*lines)])
 
-    def vista(self):
-        
-        xi = -self.comprimento/2 - 1
-        xf = -1*xi
-        z_top = self.altura/2 -1
-        z_bottom = -1*z_top
-        y = self.largura/2 + 1
-        self.bbmin = XYZ(xi, z_bottom, 0)
-        self.bbmax = XYZ(xf, z_top, y)
+    def criar_vista(self, doc, vista, tipo, offset):
+
+        t = Transform.Identity
+        t.Origin = self.origem
+
+        if tipo == 'Alcado':
+            
+            bb_min = XYZ(-self.altura - offset, -self.comprimento/2 - offset, 0)
+            bb_max = XYZ(self.altura + offset, self.comprimento/2 + offset, self.largura/2)
+
+            t.BasisX = self.vectorZ
+            t.BasisY = self.vectorX
+            t.BasisZ = self.vectorY
+
+        elif tipo == 'Seccao A':
+
+            bb_min = XYZ(-self.largura/2 - offset, -self.altura/2 - offset, -(self.cut_comprimento - self.cc)/2)
+            bb_max = XYZ(self.largura/2 + offset, self.altura/2 + offset, self.largura/2)
+
+            t.BasisX = self.vectorY
+            t.BasisY = self.vectorZ
+            t.BasisZ = self.vectorX
+    
+        elif tipo == 'Seccao B':
+
+            bb_min = XYZ(-self.largura/2 - offset, -self.altura/2 - offset, 0)
+            bb_max = XYZ(self.largura/2 + offset, self.altura/2 + offset, self.largura/2)
+
+            t.BasisX = self.vectorY
+            t.BasisY = self.vectorZ
+            t.BasisZ = self.vectorX
+
+        section_box = BoundingBoxXYZ()
+        section_box.Transform = t
+        section_box.Min = bb_min
+        section_box.Max = bb_max
+
+        section = ViewSection.CreateSection(doc, vista, section_box)
+
+        return section
+          
 
 class Pilar(Element):
 
@@ -210,7 +259,7 @@ class Pilar(Element):
         self.cc = Funk.internal_units(int(rdc[8]))
         self.cnc = self.cmp - 2*(self.cc + self.estribo_espacamento)
         lvl = doc.GetElement(self.elemento.LookupParameter("Base Level").AsElementId())
-        base_offset = self.elemento.LookupParameter("Base Offset").AsDouble()
+        base_offset = self.elemento.LookupParameter("Base offset").AsDouble()
         base_lvl = lvl.LookupParameter("Elevation").AsDouble()
         self.z = base_lvl + base_offset
 
