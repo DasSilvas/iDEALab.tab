@@ -280,10 +280,9 @@ class Pilar(Element):
         self.cc = Funk.internal_units(int(rdc[8]))
         self.cnc = self.cmp - 2*(self.cc + self.estribo_espacamento)
         lvl = doc.GetElement(self.elemento.LookupParameter("Base Level").AsElementId())
-        #base_offset = self.elemento.LookupParameter("Base offset").AsDouble()
+        base_offset = self.elemento.LookupParameter("Base Offset").AsDouble()
         base_lvl = lvl.LookupParameter("Elevation").AsDouble()
-        #self.z = base_lvl + base_offset
-        self.z = base_lvl
+        self.z = base_lvl + base_offset
 
     def b_array_length(self, d_estribo):
         return self.b - 2*(self.cover_length + d_estribo)
@@ -418,6 +417,56 @@ class Pilar(Element):
     def cnc_viga(self, altura_viga):
         self.cnc_viga = self.cnc - altura_viga
         return self.cnc_viga
+
+    def criar_vista(self, doc, vista, tipo, offset):
+
+        t = Transform.Identity
+        t.Origin = self.origem
+
+        if tipo == 'Alcado A':
+            
+            bb_min = XYZ(-self.comprimento/2 - offset, -self.b - offset, 0)
+            bb_max = XYZ(self.comprimento + offset, self.b + offset, self.b/2)
+
+            t.BasisX = self.vectorZ
+            t.BasisY = self.vectorX
+            t.BasisZ = self.vectorY
+
+        if tipo == 'Alcado B':
+            
+            bb_min = XYZ(-self.h - offset, -self.comprimento/2 - offset, 0)
+            bb_max = XYZ(self.h + offset, self.comprimento + offset, self.b/2)
+
+            t.BasisX = self.vectorY
+            t.BasisY = self.vectorZ
+            t.BasisZ = self.vectorX
+
+        elif tipo == 'Seccao A':
+
+            bb_min = XYZ(-self.b/2 - offset, -self.h/2 - offset, 0)
+            bb_max = XYZ(self.b/2 + offset, self.h/2 + offset, self.b/2)
+
+            t.BasisX = self.vectorX
+            t.BasisY = self.vectorY
+            t.BasisZ = self.vectorZ
+    
+        elif tipo == 'Seccao B':
+
+            bb_min = XYZ(-self.b/2 - offset, -self.h/2 - offset, (self.comprimento - self.cnc)/2)
+            bb_max = XYZ(self.b/2 + offset, self.h/2 + offset, (self.comprimento - self.cnc)/2 + self.b)
+
+            t.BasisX = self.vectorX
+            t.BasisY = self.vectorY
+            t.BasisZ = self.vectorZ
+
+        section_box = BoundingBoxXYZ()
+        section_box.Transform = t
+        section_box.Min = bb_min
+        section_box.Max = bb_max
+
+        section = ViewSection.CreateSection(doc, vista, section_box)
+
+        return section
 
 class Sapata(Element):
         

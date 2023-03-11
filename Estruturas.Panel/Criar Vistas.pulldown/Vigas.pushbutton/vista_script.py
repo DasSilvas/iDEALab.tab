@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""WIP vistas"""
+"""Vistas Vigas"""
 # Load the Python Standard and DesignScript Libraries
 import clr
 clr.AddReference('ProtoGeometry')
@@ -51,7 +51,7 @@ vigas = [Viga(doc, element) for element in elements if element.LookupParameter("
 
 OFFSET = 0.65
 
-t = Transaction(doc, "vistas")
+t = Transaction(doc, "Vistas Vigas")
 t.Start()
 
 for viga in vigas:

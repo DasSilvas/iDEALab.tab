@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""WIP vistas"""
+"""Vistas Pilares"""
 # Load the Python Standard and DesignScript Libraries
 import clr
 clr.AddReference('ProtoGeometry')
@@ -24,10 +24,9 @@ import os.path
 import sys
 
 # get the absolute path to the grandparent directory
-grandparent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+grandparent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 # add the grandparent directory to the system path
 sys.path.insert(0, grandparent_dir)
-print(grandparent_dir)
 
 from classes import Pilar
 from classes import RvtApiCategory as cat
@@ -52,7 +51,7 @@ pilares = [Pilar(doc, element) for element in elements if element.LookupParamete
 
 OFFSET = 0.65
 
-t = Transaction(doc, "vistas")
+t = Transaction(doc, "Vistas Pilares")
 t.Start()
 
 for pilar in pilares:
