@@ -25,6 +25,27 @@ class RvtParameterName:
     HOOK_NAME_FUND = "50Ø"
     HOOK_ROTATION = "Hook Rotation At Start"
 
+class RvtClasses:
+    VIEW_TYPE = ViewFamilyType
+
+class RvtApi:
+
+    @staticmethod
+    def get_elements(doc, category):
+        elements = FilteredElementCollector(doc).WherePasses(ElementCategoryFilter(category)).WhereElementIsNotElementType().ToElements()
+        return elements
+
+    @staticmethod
+    def get_elements_type(doc, category):
+        elements_type = FilteredElementCollector(doc).WherePasses(ElementCategoryFilter(category)).WhereElementIsElementType().ToElements()
+        return elements_type
+
+    @staticmethod
+    def get_type_element_byclass(doc, classe):
+        element_type = FilteredElementCollector(doc).OfClass(classe).WhereElementIsElementType().ToElements()
+        return element_type
+
+
 class Funk:
 
     @staticmethod
@@ -84,6 +105,7 @@ class Element:
     def __init__(self, doc, elemento):
 
         self.elemento = elemento
+        self.nome = elemento.Name
         self.type = doc.GetElement(elemento.GetTypeId())
         self.code = self.type.LookupParameter("Type Comments").AsString()
         self.origem = elemento.GetTransform().Origin
@@ -91,14 +113,12 @@ class Element:
         self.vectorY = elemento.GetTransform().BasisY
         self.vectorZ = elemento.GetTransform().BasisZ
         self.bbox = elemento.get_BoundingBox(None)
-        self.name = elemento.Name
     
 class Viga(Element):
 
     def __init__(self, doc, elemento):
 
         Element.__init__(self, doc, elemento)
-        self.nome = self.elemento.Name
         self.largura = self.type.LookupParameter("b").AsDouble()
         self.altura = self.type.LookupParameter("h").AsDouble()
         self.cut_comprimento = elemento.LookupParameter("Cut Length").AsDouble()
@@ -235,10 +255,10 @@ class Viga(Element):
 
         return section
           
-
 class Pilar(Element):
 
     def __init__(self, doc, elemento):
+        
         Element.__init__(self, doc, elemento)
         self.b = self.type.LookupParameter("b").AsDouble()
         self.h = self.type.LookupParameter("h").AsDouble()
@@ -259,9 +279,9 @@ class Pilar(Element):
         self.cc = Funk.internal_units(int(rdc[8]))
         self.cnc = self.cmp - 2*(self.cc + self.estribo_espacamento)
         lvl = doc.GetElement(self.elemento.LookupParameter("Base Level").AsElementId())
-        base_offset = self.elemento.LookupParameter("Base offset").AsDouble()
+        #base_offset = self.elemento.LookupParameter("Base offset").AsDouble()
         base_lvl = lvl.LookupParameter("Elevation").AsDouble()
-        self.z = base_lvl + base_offset
+        #self.z = base_lvl + base_offset
 
     def b_array_length(self, d_estribo):
         return self.b - 2*(self.cover_length + d_estribo)
@@ -396,6 +416,56 @@ class Pilar(Element):
     def cnc_viga(self, altura_viga):
         self.cnc_viga = self.cnc - altura_viga
         return self.cnc_viga
+
+    def criar_vista(self, doc, vista, tipo, offset):
+
+        t = Transform.Identity
+        t.Origin = self.origem
+
+        if tipo == 'Alcado A':
+            
+            bb_min = XYZ(-self.comprimento/2 - offset, -self.b - offset, 0)
+            bb_max = XYZ(self.comprimento + offset, self.b + offset, self.b/2)
+
+            t.BasisX = self.vectorZ
+            t.BasisY = self.vectorX
+            t.BasisZ = self.vectorY
+
+        if tipo == 'Alcado B':
+            
+            bb_min = XYZ(-self.comprimento/2 - offset, -self.h - offset, 0)
+            bb_max = XYZ(self.comprimento + offset, self.h + offset, self.b/2)
+
+            t.BasisX = self.vectorX
+            t.BasisY = self.vectorZ
+            t.BasisZ = self.vectorY
+
+        elif tipo == 'Seccao A':
+
+            bb_min = XYZ(-self.b/2 - offset, -self.h/2 - offset, 0)
+            bb_max = XYZ(self.b/2 + offset, self.h/2 + offset, self.b/2)
+
+            t.BasisX = self.vectorX
+            t.BasisY = self.vectorY
+            t.BasisZ = self.vectorZ
+    
+        elif tipo == 'Seccao B':
+
+            bb_min = XYZ(-self.b/2 - offset, -self.h/2 - offset, (self.comprimento - self.cnc)/2)
+            bb_max = XYZ(self.b/2 + offset, self.h/2 + offset, (self.comprimento - self.cnc)/2 + self.b)
+
+            t.BasisX = self.vectorX
+            t.BasisY = self.vectorY
+            t.BasisZ = self.vectorZ
+
+        section_box = BoundingBoxXYZ()
+        section_box.Transform = t
+        section_box.Min = bb_min
+        section_box.Max = bb_max
+
+        section = ViewSection.CreateSection(doc, vista, section_box)
+
+        return section
 
 class Sapata(Element):
         
