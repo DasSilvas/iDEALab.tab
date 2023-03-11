@@ -16,16 +16,37 @@ class RvtApiCategory:
 
     FUNDACAO = BuiltInCategory.OST_StructuralFoundation
     PILAR = BuiltInCategory.OST_StructuralColumns
+    FUNDACAO = BuiltInCategory.OST_StructuralFoundation
     VIGA = BuiltInCategory.OST_StructuralFraming
     REBAR = BuiltInCategory.OST_Rebar
     BAR_STANDART = RebarStyle.Standard
     BAR_STIRRUP = RebarStyle.StirrupTie
+
 class RvtParameterName:
 
     HOOK_NAME_ESTRIBO = "Stirrup/Tie Seismic - 135 deg."
     HOOK_NAME_FUND = "50Ø"
     HOOK_ROTATION = "Hook Rotation At Start"
-    TYPE_COMMENTS = "Type Comments"
+
+class RvtClasses:
+    VIEW_TYPE = ViewFamilyType
+
+class RvtApi:
+
+    @staticmethod
+    def get_elements(doc, category):
+        elements = FilteredElementCollector(doc).WherePasses(ElementCategoryFilter(category)).WhereElementIsNotElementType().ToElements()
+        return elements
+
+    @staticmethod
+    def get_elements_type(doc, category):
+        elements_type = FilteredElementCollector(doc).WherePasses(ElementCategoryFilter(category)).WhereElementIsElementType().ToElements()
+        return elements_type
+
+    @staticmethod
+    def get_type_element_byclass(doc, classe):
+        element_type = FilteredElementCollector(doc).OfClass(classe).WhereElementIsElementType().ToElements()
+        return element_type
 
 class Funk:
 
@@ -35,6 +56,8 @@ class Funk:
             x = UnitUtils.ConvertToInternalUnits(x , UnitTypeId.Meters)
         elif unidade == "mm":
             x = UnitUtils.ConvertToInternalUnits(x , UnitTypeId.Millimeters)
+        elif unidade == "cm":
+            x = UnitUtils.ConvertToInternalUnits(x , UnitTypeId.Centimeters)
         return x
     
     @staticmethod
@@ -84,6 +107,7 @@ class Element:
     def __init__(self, doc, elemento):
 
         self.elemento = elemento
+        self.nome = elemento.Name
         self.type = doc.GetElement(elemento.GetTypeId())
         self.code = self.type.LookupParameter("Type Comments").AsString()
         self.origem = elemento.GetTransform().Origin
@@ -91,14 +115,7 @@ class Element:
         self.vectorY = elemento.GetTransform().BasisY
         self.vectorZ = elemento.GetTransform().BasisZ
         self.bbox = elemento.get_BoundingBox(None)
-        self.name = elemento.Name
-
-    def create_rebar_bar(self, doc, elementos, vector_normal, estilo, linhas, hook_i, hook_f):
-        return Rebar.CreateFromCurves(doc, RebarStyle.StirrupTie, estilo, hook_i, hook_f, elementos, vector_normal, linhas, RebarHookOrientation.Right, RebarHookOrientation.Right, True, True)
-
-    def create_rebar_estribo(self, doc, vector, estilo, curvas, hook_i, hook_f):
-        return Rebar.CreateFromCurves(doc, RebarStyle.Standard, estilo, hook_i, hook_f, self.elemento, vector, curvas, RebarHookOrientation.Right, RebarHookOrientation.Left, True, True)
-
+        
 class Viga(Element):
 
     def __init__(self, doc, elemento):
@@ -108,6 +125,22 @@ class Viga(Element):
         self.altura = self.type.LookupParameter("h").AsDouble()
         self.cut_comprimento = elemento.LookupParameter("Cut Length").AsDouble()
         self.comprimento = elemento.LookupParameter("Length").AsDouble()
+        self.covertype = doc.GetElement(elemento.LookupParameter("Rebar Cover - Other Faces").AsElementId())
+        self.cover_length = self.covertype.LookupParameter("Length").AsDouble()
+        rdc = self.code.split(".")
+        self.diametro_estribo = "Ø" + str(rdc[0])
+        self.estribo_espacamento = Funk.internal_units(int(rdc[1]))
+        self.bs_diametro = "Ø" + str(rdc[2])
+        self.nr_bs = int(rdc[3])
+        self.bi_diametro = "Ø" + str(rdc[4])
+        self.nr_bi = int(rdc[5])
+        self.nr_bl = int(rdc[6])
+        self.bl_diametro = "Ø" + str(rdc[7])
+        self.bol = str(rdc[8])
+        self.est_ext_diametro = "Ø" + str(rdc[9])
+        self.est_ext_espacamento = Funk.internal_units(int(rdc[10]))
+        self.cc = Funk.internal_units(int(rdc[11]))
+        self.cnc = self.cut_comprimento - 2*(self.cc + self.estribo_espacamento)
 
     def array_length(self, d_estribo):
         return self.largura - 2*(self.cover_length + d_estribo)
@@ -183,16 +216,47 @@ class Viga(Element):
         lines = [l1_est , l2_est , l3_est , l4_est]
         self.estribo = flatten([list(x1) for x1 in zip(*lines)])
 
-    def vista(self):
-        
-        xi = -self.comprimento/2 - 1
-        xf = -1*xi
-        z_top = self.altura/2 -1
-        z_bottom = -1*z_top
-        y = self.largura/2 + 1
-        self.bbmin = XYZ(xi, z_bottom, 0)
-        self.bbmax = XYZ(xf, z_top, y)
+    def criar_vista(self, doc, vista, tipo, offset):
 
+        t = Transform.Identity
+        t.Origin = self.origem
+
+        if tipo == 'Alcado':
+            
+            bb_min = XYZ(-self.altura - offset, -self.comprimento/2 - offset, 0)
+            bb_max = XYZ(self.altura + offset, self.comprimento/2 + offset, self.largura/2)
+
+            t.BasisX = self.vectorZ
+            t.BasisY = self.vectorX
+            t.BasisZ = self.vectorY
+
+        elif tipo == 'Seccao A':
+
+            bb_min = XYZ(-self.largura/2 - offset, -self.altura/2 - offset, -(self.cut_comprimento - self.cc)/2)
+            bb_max = XYZ(self.largura/2 + offset, self.altura/2 + offset, -(self.cut_comprimento - self.cc)/2 + self.largura/2)
+
+            t.BasisX = self.vectorY
+            t.BasisY = self.vectorZ
+            t.BasisZ = self.vectorX
+    
+        elif tipo == 'Seccao B':
+
+            bb_min = XYZ(-self.largura/2 - offset, -self.altura/2 - offset, 0)
+            bb_max = XYZ(self.largura/2 + offset, self.altura/2 + offset, self.largura/2)
+
+            t.BasisX = self.vectorY
+            t.BasisY = self.vectorZ
+            t.BasisZ = self.vectorX
+
+        section_box = BoundingBoxXYZ()
+        section_box.Transform = t
+        section_box.Min = bb_min
+        section_box.Max = bb_max
+
+        section = ViewSection.CreateSection(doc, vista, section_box)
+
+        return section
+          
 class Pilar(Element):
 
     def __init__(self, doc, elemento):
@@ -216,9 +280,10 @@ class Pilar(Element):
         self.cc = Funk.internal_units(int(rdc[8]))
         self.cnc = self.cmp - 2*(self.cc + self.estribo_espacamento)
         lvl = doc.GetElement(self.elemento.LookupParameter("Base Level").AsElementId())
-        base_offset = self.elemento.LookupParameter("Base Offset").AsDouble()
+        #base_offset = self.elemento.LookupParameter("Base offset").AsDouble()
         base_lvl = lvl.LookupParameter("Elevation").AsDouble()
-        self.z = base_lvl + base_offset
+        #self.z = base_lvl + base_offset
+        self.z = base_lvl
 
     def b_array_length(self, d_estribo):
         return self.b - 2*(self.cover_length + d_estribo)
@@ -385,7 +450,6 @@ class Sapata(Element):
             self.diametro_bot_bar = "Ø" + str(rdc[2])
             self.bot_varao = Funk.internal_units(int(rdc[2]))
             self.bot_bar_espacamento = Funk.internal_units(int(rdc[3]))
-
     def barras_bottom1(self):
         
         l1_est = []
@@ -585,26 +649,3 @@ class Sapata(Element):
 
         self.lateral_bot7 = [Line.CreateBound(p5_est , p6_est)]
         self.lateral_bot8 = [Line.CreateBound(p7_est , p8_est)]
-
-
-class Rebares(Element):
-
-    def __init__(self, elemento):
-        self.elemento = elemento
-        self.familyname = elemento.FamilyName
-
-    def get_rebartype_byName(self, diametro):
-        if self.name == diametro:
-            return self.elemento
-    
-    def get_rebar_diameter(self):
-        return self.LookupParameter("Bar Diameter").AsDouble()
-
-    def get_rebarhook_byName(self, hook_name):
-        return next(hook for hook in self.elemento if hook.LookupParameter("Type Name").AsString() == hook_name)
-            
-    def set_rebar_number(self, nr, array_length, incluir_primeira_ultima_barras=True):
-        self.elemento.GetShapeDrivenAccessor().SetLayoutAsFixedNumber(nr, array_length, True, incluir_primeira_ultima_barras, incluir_primeira_ultima_barras)
-
-    def set_rebar_spacing(self, spacing, array_length, incluir_primeira_ultima_barras=True):
-        self.elemento.GetShapeDrivenAccessor().SetLayoutAsMaximumSpacing(spacing, array_length, True, incluir_primeira_ultima_barras, incluir_primeira_ultima_barras)

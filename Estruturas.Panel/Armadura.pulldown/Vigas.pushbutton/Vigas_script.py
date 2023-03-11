@@ -22,9 +22,16 @@ from RevitServices.Transactions import TransactionManager
 
 clr.AddReference('RevitAPIUI')
 from Autodesk.Revit.UI import *
-import math
 
-from classes import Element, Viga
+import os.path
+import sys
+
+# get the absolute path to the grandparent directory
+grandparent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+# add the grandparent directory to the system path
+sys.path.insert(0, grandparent_dir)
+
+from classes import Viga
     
 def ciclo(x):
     return range(len(x))
