@@ -48,6 +48,34 @@ class RvtApi:
         element_type = FilteredElementCollector(doc).OfClass(classe).WhereElementIsElementType().ToElements()
         return element_type
 
+    @staticmethod
+    def criar_vista(doc, vista, origem, x, y, zi, zf, vector_x, vector_y, vector_z, offset):
+
+        t = Transform.Identity
+        t.Origin = origem
+
+        xbb_min = -x - offset
+        ybb_min = -y - offset
+        zzbb_min = -zi
+        bb_min = XYZ(xbb_min, ybb_min, zzbb_min)
+
+        xbb_max = x + offset
+        ybb_max = y + offset
+        zbb_max = zf    
+        bb_max = XYZ(xbb_max, ybb_max, zbb_max)
+
+        t.BasisX = vector_x
+        t.BasisY = vector_y
+        t.BasisZ = vector_z
+
+        corte_aox = BoundingBoxXYZ()
+        corte_aox.Transform = t
+        corte_aox.Min = bb_min
+        corte_aox.Max = bb_max
+
+        section = ViewSection.CreateSection(doc, vista, corte_aox)
+
+        return section
 class Funk:
 
     @staticmethod
@@ -248,12 +276,12 @@ class Viga(Element):
             t.BasisY = self.vectorZ
             t.BasisZ = self.vectorX
 
-        section_box = BoundingBoxXYZ()
-        section_box.Transform = t
-        section_box.Min = bb_min
-        section_box.Max = bb_max
+        corte_aox = BoundingBoxXYZ()
+        corte_aox.Transform = t
+        corte_aox.Min = bb_min
+        corte_aox.Max = bb_max
 
-        section = ViewSection.CreateSection(doc, vista, section_box)
+        section = ViewSection.CreateSection(doc, vista, corte_aox)
 
         return section
           
@@ -459,21 +487,21 @@ class Pilar(Element):
             t.BasisY = self.vectorY
             t.BasisZ = self.vectorZ
 
-        section_box = BoundingBoxXYZ()
-        section_box.Transform = t
-        section_box.Min = bb_min
-        section_box.Max = bb_max
+        corte_aox = BoundingBoxXYZ()
+        corte_aox.Transform = t
+        corte_aox.Min = bb_min
+        corte_aox.Max = bb_max
 
-        section = ViewSection.CreateSection(doc, vista, section_box)
+        section = ViewSection.CreateSection(doc, vista, corte_aox)
 
         return section
 
 class Sapata(Element):
         
     def __init__(self, doc, elemento):
-
         # Este parametro serve para distinguir das fundacoes que sao Isolated ou se sao modeladas como Slabs
         self.elemento = elemento
+        self.doc = doc
         floor = elemento.get_Parameter(BuiltInParameter.FLOOR_PARAM_IS_STRUCTURAL)
 
         if floor is not None:
@@ -499,6 +527,7 @@ class Sapata(Element):
             self.diametro_bot_bar = "Ø" + str(rdc[2])
             self.bot_varao = Funk.internal_units(int(rdc[2]))
             self.bot_bar_espacamento = Funk.internal_units(int(rdc[3]))
+
     def barras_bottom1(self):
         
         l1_est = []
@@ -698,3 +727,19 @@ class Sapata(Element):
 
         self.lateral_bot7 = [Line.CreateBound(p5_est , p6_est)]
         self.lateral_bot8 = [Line.CreateBound(p7_est , p8_est)]
+
+    def criar_vistas(self, vista, offset):
+
+        prof = Funk.internal_units(0.15, "m")
+
+        planta = RvtApi.criar_vista(self.doc, vista, self.origem, self.largura, self.comprimento, prof, self.altura/2, self.vectorX, self.vectorY.Negate(), self.vectorZ.Negate(), offset)
+        planta.Name = "1A - Planta {}".format(self.nome)
+        planta.LookupParameter("Title on Sheet").Set('Planta {}'.format(self.nome))
+
+        corte_a = RvtApi.criar_vista(self.doc, vista, self.origem, self.altura, self.largura, 0, prof, self.vectorZ, self.vectorX, self.vectorY, offset)
+        corte_a.Name = "1B - {} Corte A".format(self.nome)
+        corte_a.LookupParameter("Title on Sheet").Set('{} Corte A'.format(self.nome))
+    
+        corte_b = RvtApi.criar_vista(self.doc, vista, self.origem, self.comprimento, self.altura, 0, prof, self.vectorY, self.vectorZ, self.vectorX, offset)
+        corte_b.Name = "1C - {} Corte B".format(self.nome)
+        corte_b.LookupParameter("Title on Sheet").Set('{} Corte B'.format(self.nome))

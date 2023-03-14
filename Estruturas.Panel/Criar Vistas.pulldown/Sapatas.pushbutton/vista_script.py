@@ -24,7 +24,7 @@ import os.path
 import sys
 
 # get the absolute path to the grandparent directory
-grandparent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+grandparent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 # add the grandparent directory to the system path
 sys.path.insert(0, grandparent_dir)
 
