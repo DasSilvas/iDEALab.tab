@@ -30,23 +30,27 @@ class RvtParameterName:
 
 class RvtClasses:
     VIEW_TYPE = ViewFamilyType
+    VIEW = View
 
 class RvtApi:
 
     @staticmethod
-    def get_elements(doc, category):
-        elements = FilteredElementCollector(doc).WherePasses(ElementCategoryFilter(category)).WhereElementIsNotElementType().ToElements()
-        return elements
+    def get_elements_bycategory(doc, category, element_type=False):
+        if element_type:
+            elements = FilteredElementCollector(doc).WherePasses(ElementCategoryFilter(category)).WhereElementIsElementType().ToElements()
+            return elements
+        else:
+            elements = FilteredElementCollector(doc).WherePasses(ElementCategoryFilter(category)).WhereElementIsNotElementType().ToElements()
+            return elements
 
     @staticmethod
-    def get_elements_type(doc, category):
-        elements_type = FilteredElementCollector(doc).WherePasses(ElementCategoryFilter(category)).WhereElementIsElementType().ToElements()
-        return elements_type
-
-    @staticmethod
-    def get_type_element_byclass(doc, classe):
-        element_type = FilteredElementCollector(doc).OfClass(classe).WhereElementIsElementType().ToElements()
-        return element_type
+    def get_element_byclass(doc, classe, element_type=False):
+        if element_type:
+            e = FilteredElementCollector(doc).OfClass(classe).WhereElementIsElementType().ToElements()
+            return e
+        else:
+            element = FilteredElementCollector(doc).OfClass(classe).WhereElementIsNotElementType().ToElements()
+            return element
 
     @staticmethod
     def criar_vista(doc, vista, origem, x, y, zi, zf, vector_x, vector_y, vector_z, offset):

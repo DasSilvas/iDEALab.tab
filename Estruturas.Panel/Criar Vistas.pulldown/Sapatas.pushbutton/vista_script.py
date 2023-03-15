@@ -35,10 +35,10 @@ from classes import RvtClasses as cls
 
 doc = __revit__.ActiveUIDocument.Document
 
-elements = rvt.get_elements(doc, cat.FUNDACAO)
+elements = rvt.get_elements_bycategory(doc, cat.FUNDACAO)
 
 #ViewFamTypes = FilteredElementCollector(doc).OfClass(ViewFamilyType).WhereElementIsElementType().ToElements()
-ViewFamTypes = rvt.get_type_element_byclass(doc, cls.VIEW_TYPE)
+ViewFamTypes = rvt.get_element_byclass(doc, cls.VIEW_TYPE, element_type=True)
 
 def get_section(vistas):
     for view in vistas:

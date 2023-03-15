@@ -33,8 +33,30 @@ from classes import RvtApiCategory as cat
 from classes import RvtApi as rvt
 from classes import RvtClasses as cls
 
+from pyrevit import forms, script
+
+class ViewTemplates(forms.TemplateListItem):
+    @property
+    def name(self):
+        return self.Name
+
 doc = __revit__.ActiveUIDocument.Document
 
+views_all = rvt.get_element_byclass(doc, cls.VIEW)
+
+templates_all = [v for v in views_all if v.IsTemplate]
+
+templates_names = [t.Name for t in templates_all]
+
+test = forms.SelectFromList.show(
+    [ViewTemplates(v) for v in templates_all],
+    title = "Teste de fazer janela",
+    width = 500,
+    button_name = "Executar")
+
+print(test)
+
+"""
 elements = rvt.get_elements(doc, cat.FUNDACAO)
 
 #ViewFamTypes = FilteredElementCollector(doc).OfClass(ViewFamilyType).WhereElementIsElementType().ToElements()
@@ -59,4 +81,4 @@ for sapata in sapatas:
         vistas = sapata.criar_vistas(vista, OFFSET)
 
 t.Commit()
-
+"""
