@@ -61,7 +61,7 @@ OFFSET = 0.65
 
 template = forms.SelectFromList.show(
     [ViewTemplates(v) for v in templates_all],
-    title = "Escolher View Tempalte",
+    title = "Escolher View Template",
     width = 500,
     button_name = "Executar")
 
@@ -78,13 +78,16 @@ for pilar in pilares:
     section_B = pilar.criar_vista(doc, vista, 'Seccao B', OFFSET)
     section_B.Name = "2B - {} Secção B".format(pilar.nome)
     section_B_sheet = section_B.LookupParameter("Title on Sheet").Set('{} Secção B'.format(pilar.nome))
+    section_B_template = section_B.LookupParameter("View Template").Set(template)
 
     alcado_A = pilar.criar_vista(doc, vista, 'Alcado A', OFFSET)
     alcado_A.Name = "2C - {} Corte A".format(pilar.nome)
     alcado_A_sheet = alcado_A.LookupParameter("Title on Sheet").Set('{} Corte A'.format(pilar.nome))
+    alcado_A_template = alcado_A.LookupParameter("View Template").Set(template)
 
     alcado_B = pilar.criar_vista(doc, vista, 'Alcado B', OFFSET)
     alcado_B.Name = "2C - {} Corte B".format(pilar.nome)
     alcado_B_sheet = alcado_B.LookupParameter("Title on Sheet").Set('{} Corte B'.format(pilar.nome))
+    alcado_B_template = alcado_B.LookupParameter("View Template").Set(template)
 
 t.Commit()

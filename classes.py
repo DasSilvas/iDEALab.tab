@@ -16,7 +16,7 @@ class RvtApiCategory:
 
     FUNDACAO = BuiltInCategory.OST_StructuralFoundation
     PILAR = BuiltInCategory.OST_StructuralColumns
-    FUNDACAO = BuiltInCategory.OST_StructuralFoundation
+    PAREDE = BuiltInCategory.OST_Walls
     VIGA = BuiltInCategory.OST_StructuralFraming
     REBAR = BuiltInCategory.OST_Rebar
     BAR_STANDART = RebarStyle.Standard
@@ -80,6 +80,7 @@ class RvtApi:
         section = ViewSection.CreateSection(doc, vista, corte_aox)
 
         return section
+
 class Funk:
 
     @staticmethod
@@ -458,7 +459,7 @@ class Pilar(Element):
         if tipo == 'Alcado A':
             
             bb_min = XYZ(-self.comprimento/2 - offset, -self.b - offset, 0)
-            bb_max = XYZ(self.comprimento + offset, self.b + offset, self.b/2)
+            bb_max = XYZ(self.comprimento + offset, self.b + offset, self.h/2)
 
             t.BasisX = self.vectorZ
             t.BasisY = self.vectorX
@@ -732,18 +733,21 @@ class Sapata(Element):
         self.lateral_bot7 = [Line.CreateBound(p5_est , p6_est)]
         self.lateral_bot8 = [Line.CreateBound(p7_est , p8_est)]
 
-    def criar_vistas(self, vista, offset):
+    def criar_vistas(self, vista, offset, template):
 
         prof = Funk.internal_units(0.15, "m")
 
         planta = RvtApi.criar_vista(self.doc, vista, self.origem, self.largura, self.comprimento, prof, self.altura/2, self.vectorX, self.vectorY.Negate(), self.vectorZ.Negate(), offset)
         planta.Name = "1A - Planta {}".format(self.nome)
         planta.LookupParameter("Title on Sheet").Set('Planta {}'.format(self.nome))
+        planta.LookupParameter("View Template").Set(template)
 
         corte_a = RvtApi.criar_vista(self.doc, vista, self.origem, self.altura, self.largura, 0, prof, self.vectorZ, self.vectorX, self.vectorY, offset)
         corte_a.Name = "1B - {} Corte A".format(self.nome)
         corte_a.LookupParameter("Title on Sheet").Set('{} Corte A'.format(self.nome))
-    
+        corte_a.LookupParameter("View Template").Set(template)
+
         corte_b = RvtApi.criar_vista(self.doc, vista, self.origem, self.comprimento, self.altura, 0, prof, self.vectorY, self.vectorZ, self.vectorX, offset)
         corte_b.Name = "1C - {} Corte B".format(self.nome)
         corte_b.LookupParameter("Title on Sheet").Set('{} Corte B'.format(self.nome))
+        corte_b.LookupParameter("View Template").Set(template)

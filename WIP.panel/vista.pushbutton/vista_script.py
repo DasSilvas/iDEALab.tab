@@ -28,7 +28,7 @@ grandparent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 
 # add the grandparent directory to the system path
 sys.path.insert(0, grandparent_dir)
 
-from classes import Sapata, Funk
+from classes import Element, Funk
 from classes import RvtApiCategory as cat
 from classes import RvtApi as rvt
 from classes import RvtClasses as cls
@@ -42,6 +42,7 @@ class ViewTemplates(forms.TemplateListItem):
 
 doc = __revit__.ActiveUIDocument.Document
 
+"""
 views_all = rvt.get_element_byclass(doc, cls.VIEW)
 
 templates_all = [v for v in views_all if v.IsTemplate]
@@ -57,10 +58,9 @@ test = forms.SelectFromList.show(
 print(test)
 
 """
-elements = rvt.get_elements(doc, cat.FUNDACAO)
+elements = rvt.get_elements_bycategory(doc, cat.PAREDE)
 
-#ViewFamTypes = FilteredElementCollector(doc).OfClass(ViewFamilyType).WhereElementIsElementType().ToElements()
-ViewFamTypes = rvt.get_type_element_byclass(doc, cls.VIEW_TYPE)
+ViewFamTypes = rvt.get_element_byclass(doc, cls.VIEW_TYPE, element_type=True)
 
 def get_section(vistas):
     for view in vistas:
@@ -69,10 +69,12 @@ def get_section(vistas):
 
 vista = get_section(ViewFamTypes).Id
 
-sapatas = [Sapata(doc, element) for element in elements if element.LookupParameter("Criar_vistas").AsInteger() == 1]
+paredes = [Element(doc,element) for element in elements if element.LookupParameter("Criar_vistas").AsInteger() == 1]
+
+print(paredes)
 
 OFFSET = Funk.internal_units(0.15, "m")
-
+"""
 t = Transaction(doc, "vistas")
 t.Start()
 

@@ -32,6 +32,12 @@ from classes import Viga
 from classes import RvtApiCategory as cat
 from classes import RvtApi as rvt
 from classes import RvtClasses as cls
+from pyrevit import forms
+
+class ViewTemplates(forms.TemplateListItem):
+    @property
+    def name(self):
+        return doc.GetElement(self.item).Name
 
 doc = __revit__.ActiveUIDocument.Document
 
@@ -39,6 +45,9 @@ elements = rvt.get_elements_bycategory(doc, cat.VIGA)
 
 #ViewFamTypes = FilteredElementCollector(doc).OfClass(ViewFamilyType).WhereElementIsElementType().ToElements()
 ViewFamTypes = rvt.get_element_byclass(doc, cls.VIEW_TYPE, element_type=True)
+
+views_all = rvt.get_element_byclass(doc, cls.VIEW)
+templates_all = [v.Id for v in views_all if v.IsTemplate]
 
 def get_section(vistas):
     for view in vistas:
@@ -49,23 +58,33 @@ vista = get_section(ViewFamTypes).Id
 
 vigas = [Viga(doc, element) for element in elements if element.LookupParameter("Criar_vistas").AsInteger() == 1]
 
-OFFSET = 0.65
+template = forms.SelectFromList.show(
+    [ViewTemplates(v) for v in templates_all],
+    title = "Escolher View Template",
+    width = 500,
+    button_name = "Executar")
+
+OFFSET_SECTION = 1
+OFFSET_ALCADO = 3
 
 t = Transaction(doc, "Vistas Vigas")
 t.Start()
 
 for viga in vigas:
 
-    section_A = viga.criar_vista(doc, vista, 'Seccao A', OFFSET)
+    section_A = viga.criar_vista(doc, vista, 'Seccao A', OFFSET_SECTION)
     section_A.Name = "3A - {} Secção A".format(viga.nome)
     sectiom_A_sheet = section_A.LookupParameter("Title on Sheet").Set('{} Secção A'.format(viga.nome))
+    section_A_template = section_A.LookupParameter("View Template").Set(template)
 
-    section_B = viga.criar_vista(doc, vista, 'Seccao B', OFFSET)
+    section_B = viga.criar_vista(doc, vista, 'Seccao B', OFFSET_SECTION)
     section_B.Name = "3B - {} Secção B".format(viga.nome)
     sectiom_B_sheet = section_B.LookupParameter("Title on Sheet").Set('{} Secção B'.format(viga.nome))
+    section_B_template = section_B.LookupParameter("View Template").Set(template)
 
-    alcado = viga.criar_vista(doc, vista, 'Alcado', OFFSET)
+    alcado = viga.criar_vista(doc, vista, 'Alcado', OFFSET_ALCADO)
     alcado.Name = "3C - {} Corte".format(viga.nome)
     alcado_sheet = alcado.LookupParameter("Title on Sheet").Set('Corte {}'.format(viga.nome))
+    alcado_template = alcado.LookupParameter("View Template").Set(template)
 
 t.Commit()

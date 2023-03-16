@@ -32,13 +32,21 @@ from classes import Sapata, Funk
 from classes import RvtApiCategory as cat
 from classes import RvtApi as rvt
 from classes import RvtClasses as cls
+from pyrevit import forms
+
+class ViewTemplates(forms.TemplateListItem):
+    @property
+    def name(self):
+        return doc.GetElement(self.item).Name
 
 doc = __revit__.ActiveUIDocument.Document
 
 elements = rvt.get_elements_bycategory(doc, cat.FUNDACAO)
 
-#ViewFamTypes = FilteredElementCollector(doc).OfClass(ViewFamilyType).WhereElementIsElementType().ToElements()
 ViewFamTypes = rvt.get_element_byclass(doc, cls.VIEW_TYPE, element_type=True)
+
+views_all = rvt.get_element_byclass(doc, cls.VIEW)
+templates_all = [v.Id for v in views_all if v.IsTemplate]
 
 def get_section(vistas):
     for view in vistas:
@@ -49,6 +57,12 @@ vista = get_section(ViewFamTypes).Id
 
 sapatas = [Sapata(doc, element) for element in elements if element.LookupParameter("Criar_vistas").AsInteger() == 1]
 
+template = forms.SelectFromList.show(
+    [ViewTemplates(v) for v in templates_all],
+    title = "Escolher View Template",
+    width = 500,
+    button_name = "Executar")
+
 OFFSET = Funk.internal_units(0.15, "m")
 
 t = Transaction(doc, "vistas")
@@ -56,7 +70,7 @@ t.Start()
 
 for sapata in sapatas:
 
-        vistas = sapata.criar_vistas(vista, OFFSET)
+        vistas = sapata.criar_vistas(vista, OFFSET, template)
 
 t.Commit()
 
