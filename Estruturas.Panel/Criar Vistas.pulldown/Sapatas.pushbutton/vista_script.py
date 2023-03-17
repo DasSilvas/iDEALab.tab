@@ -32,7 +32,7 @@ from classes import Sapata, Funk
 from classes import RvtApiCategory as cat
 from classes import RvtApi as rvt
 from classes import RvtClasses as cls
-from pyrevit import forms
+from pyrevit import forms, script
 
 class ViewTemplates(forms.TemplateListItem):
     @property
@@ -62,6 +62,9 @@ template = forms.SelectFromList.show(
     title = "Escolher View Template",
     width = 500,
     button_name = "Executar")
+
+if not template:
+    script.exit()
 
 OFFSET = Funk.internal_units(0.15, "m")
 

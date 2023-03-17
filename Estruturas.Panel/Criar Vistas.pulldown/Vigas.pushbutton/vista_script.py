@@ -32,7 +32,7 @@ from classes import Viga
 from classes import RvtApiCategory as cat
 from classes import RvtApi as rvt
 from classes import RvtClasses as cls
-from pyrevit import forms
+from pyrevit import forms, script
 
 class ViewTemplates(forms.TemplateListItem):
     @property
@@ -63,6 +63,9 @@ template = forms.SelectFromList.show(
     title = "Escolher View Template",
     width = 500,
     button_name = "Executar")
+
+if not template:
+    script.exit()
 
 OFFSET_SECTION = 1
 OFFSET_ALCADO = 3
