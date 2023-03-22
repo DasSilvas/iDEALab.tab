@@ -149,7 +149,7 @@ class Element:
         self.vectorZ = elemento.GetTransform().BasisZ
         self.bbox = elemento.get_BoundingBox(None)
         
-    def create_dimensions(self, doc, vista, ponto1, ponto2, offset, x_lock=True):
+    def create_dimensions(self, doc, vista, ponto1, ponto2, offset, x_lock=False, y_lock=False):
         
         if x_lock:
 
@@ -173,7 +173,7 @@ class Element:
             reference.Append(curva1.GetEndPointReference(1))
             doc.Create.NewDimension(vista, line1, reference)
         
-        else:
+        elif y_lock:
 
             y = self.h/2 + Funk.internal_units(offset, "mm")
             x_left = ponto1

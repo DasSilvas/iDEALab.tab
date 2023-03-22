@@ -81,23 +81,23 @@ for pilar in pilares:
     section_A_sheet = section_A.LookupParameter("Title on Sheet").Set('{} Secção A'.format(pilar.nome))
     section_A_template = section_A.LookupParameter("View Template").Set(template)
 
-    cotar_altura = pilar.create_dimensions(doc, section_A, -pilar.h/2, pilar.h/2, OFFSET_DIM)
-    cotar_largura = pilar.create_dimensions(doc, section_A, -pilar.b/2, pilar.b/2, OFFSET_DIM, x_lock=False)
+    cotar_altura = pilar.create_dimensions(doc, section_A, -pilar.h/2, pilar.h/2, OFFSET_DIM, x_lock=True)
+    cotar_largura = pilar.create_dimensions(doc, section_A, -pilar.b/2, pilar.b/2, OFFSET_DIM, y_lock=True)
 
     h_rec1 = -pilar.h/2
     h_rec2 = h_rec1 + pilar.cover_length
     h_rec3 = pilar.h/2 - pilar.cover_length
     h_rec4 = pilar.h/2
 
-    rec_altura1 = pilar.create_dimensions(doc, section_A, h_rec1, h_rec2, OFFSET_DIM_REC)
-    rec_altura2 = pilar.create_dimensions(doc, section_A, h_rec3, h_rec4, OFFSET_DIM_REC)
+    rec_altura1 = pilar.create_dimensions(doc, section_A, h_rec1, h_rec2, OFFSET_DIM_REC, x_lock=True)
+    rec_altura2 = pilar.create_dimensions(doc, section_A, h_rec3, h_rec4, OFFSET_DIM_REC, x_lock=True)
 
     b_rec1 = -pilar.b/2
     b_rec2 = b_rec1 + pilar.cover_length
     b_rec3 = pilar.b/2 - pilar.cover_length
     b_rec4 = pilar.b/2
-    rec_altura1 = pilar.create_dimensions(doc, section_A, b_rec1, b_rec2, OFFSET_DIM_REC, x_lock=False)
-    rec_altura2 = pilar.create_dimensions(doc, section_A, b_rec3, b_rec4, OFFSET_DIM_REC, x_lock=False)
+    rec_altura1 = pilar.create_dimensions(doc, section_A, b_rec1, b_rec2, OFFSET_DIM_REC, y_lock=True)
+    rec_altura2 = pilar.create_dimensions(doc, section_A, b_rec3, b_rec4, OFFSET_DIM_REC, y_lock=True)
 
 
 """
