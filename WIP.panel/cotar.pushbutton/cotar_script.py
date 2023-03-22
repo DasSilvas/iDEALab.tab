@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""WIP cotar pecas desenhadas"""
+"""Vistas Pilares"""
 # Load the Python Standard and DesignScript Libraries
 import clr
 clr.AddReference('ProtoGeometry')
@@ -32,9 +32,93 @@ from classes import Pilar, Funk
 from classes import RvtApiCategory as cat
 from classes import RvtApi as rvt
 from classes import RvtClasses as cls
+from pyrevit import forms, script
+
+class ViewTemplates(forms.TemplateListItem):
+    @property
+    def name(self):
+        return doc.GetElement(self.item).Name
+
+def get_section(vistas):
+    for view in vistas:
+        if view.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_NAME).AsString() == "Building Section":
+            return view
 
 doc = __revit__.ActiveUIDocument.Document
 
+elements = rvt.get_elements_bycategory(doc, cat.PILAR)
+
+ViewFamTypes = rvt.get_element_byclass(doc, cls.VIEW_TYPE, element_type=True)
+
+views_all = rvt.get_element_byclass(doc, cls.VIEW)
+templates_all = [v.Id for v in views_all if v.IsTemplate]
+
+vista = get_section(ViewFamTypes).Id
+
+pilares = [Pilar(doc, element) for element in elements if element.LookupParameter("Criar_vistas").AsInteger() == 1]
+
+OFFSET = 0.65
+
+template = forms.SelectFromList.show(
+    [ViewTemplates(v) for v in templates_all],
+    title = "Escolher View Template",
+    width = 500,
+    button_name = "Executar")
+
+if not template:
+    script.exit()
+
+OFFSET_DIM = 175
+OFFSET_DIM_REC = OFFSET_DIM/2
+
+t = Transaction(doc, "Vistas Pilares")
+t.Start()
+
+for pilar in pilares:
+
+    section_A = pilar.criar_vista(doc, vista, 'Seccao A', OFFSET)
+    section_A.Name = "2A - {} Secção A".format(pilar.nome)
+    section_A_sheet = section_A.LookupParameter("Title on Sheet").Set('{} Secção A'.format(pilar.nome))
+    section_A_template = section_A.LookupParameter("View Template").Set(template)
+
+    cotar_altura = pilar.create_dimensions(doc, section_A, -pilar.h/2, pilar.h/2, OFFSET_DIM)
+    cotar_largura = pilar.create_dimensions(doc, section_A, -pilar.b/2, pilar.b/2, OFFSET_DIM, x_lock=False)
+
+    h_rec1 = -pilar.h/2
+    h_rec2 = h_rec1 + pilar.cover_length
+    h_rec3 = pilar.h/2 - pilar.cover_length
+    h_rec4 = pilar.h/2
+
+    rec_altura1 = pilar.create_dimensions(doc, section_A, h_rec1, h_rec2, OFFSET_DIM_REC)
+    rec_altura2 = pilar.create_dimensions(doc, section_A, h_rec3, h_rec4, OFFSET_DIM_REC)
+
+    b_rec1 = -pilar.b/2
+    b_rec2 = b_rec1 + pilar.cover_length
+    b_rec3 = pilar.b/2 - pilar.cover_length
+    b_rec4 = pilar.b/2
+    rec_altura1 = pilar.create_dimensions(doc, section_A, b_rec1, b_rec2, OFFSET_DIM_REC, x_lock=False)
+    rec_altura2 = pilar.create_dimensions(doc, section_A, b_rec3, b_rec4, OFFSET_DIM_REC, x_lock=False)
+
+
+"""
+
+    section_B = pilar.criar_vista(doc, vista, 'Seccao B', OFFSET)
+    section_B.Name = "2B - {} Secção B".format(pilar.nome)
+    section_B_sheet = section_B.LookupParameter("Title on Sheet").Set('{} Secção B'.format(pilar.nome))
+    section_B_template = section_B.LookupParameter("View Template").Set(template)
+
+    alcado_A = pilar.criar_vista(doc, vista, 'Alcado A', OFFSET)
+    alcado_A.Name = "2C - {} Corte A".format(pilar.nome)
+    alcado_A_sheet = alcado_A.LookupParameter("Title on Sheet").Set('{} Corte A'.format(pilar.nome))
+    alcado_A_template = alcado_A.LookupParameter("View Template").Set(template)
+
+    alcado_B = pilar.criar_vista(doc, vista, 'Alcado B', OFFSET)
+    alcado_B.Name = "2C - {} Corte B".format(pilar.nome)
+    alcado_B_sheet = alcado_B.LookupParameter("Title on Sheet").Set('{} Corte B'.format(pilar.nome))
+    alcado_B_template = alcado_B.LookupParameter("View Template").Set(template)
+"""
+t.Commit()
+"""
 views_all = rvt.get_element_byclass(doc, cls.VIEW)
 
 elements = rvt.get_elements_bycategory(doc, cat.PILAR)
@@ -77,3 +161,4 @@ for i, pilar in enumerate(pilares):
         print(pilar.nome)
 
 t.Commit()
+"""
