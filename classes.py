@@ -149,11 +149,11 @@ class Element:
         self.vectorZ = elemento.GetTransform().BasisZ
         self.bbox = elemento.get_BoundingBox(None)
         
-    def create_dimensions(self, doc, vista, ponto1, ponto2, offset, x_lock=False, y_lock=False):
+    def create_dimensions(self, doc, vista, ponto1, ponto2, offset, x_lock_value=0, y_lock_value=0, x_lock=False, y_lock=False, zx_lock=False, zy_lock=False):
         
         if x_lock:
 
-            x = self.b/2 + Funk.internal_units(offset, "mm")
+            x = x_lock_value + Funk.internal_units(offset, "mm")
             y_left = ponto1
             y_right = ponto2
 
@@ -164,18 +164,9 @@ class Element:
             p1 = self.origem.Add(vector_x).Add(vector_yleft)
             p2 = self.origem.Add(vector_x).Add(vector_yright)
 
-            line1 = Line.CreateBound(p1, p2)
-
-            reference = ReferenceArray()
-            linha1 = doc.Create.NewDetailCurve(vista, line1)
-            curva1 = linha1.GeometryCurve
-            reference.Append(curva1.GetEndPointReference(0))
-            reference.Append(curva1.GetEndPointReference(1))
-            doc.Create.NewDimension(vista, line1, reference)
-        
         elif y_lock:
 
-            y = self.h/2 + Funk.internal_units(offset, "mm")
+            y = y_lock_value + Funk.internal_units(offset, "mm")
             x_left = ponto1
             x_right = ponto2
 
@@ -183,17 +174,42 @@ class Element:
             vector_xleft = self.vectorX.Multiply(x_left)
             vector_xright = self.vectorX.Multiply(x_right)
 
-            p3 = self.origem.Add(vector_xleft).Add(vector_y)
-            p4 = self.origem.Add(vector_xright).Add(vector_y)
+            p1 = self.origem.Add(vector_xleft).Add(vector_y)
+            p2 = self.origem.Add(vector_xright).Add(vector_y)
 
-            line2 = Line.CreateBound(p3, p4)
+        elif zx_lock:
 
-            reference = ReferenceArray()
-            linha2 = doc.Create.NewDetailCurve(vista, line2)
-            curva2 = linha2.GeometryCurve
-            reference.Append(curva2.GetEndPointReference(0))
-            reference.Append(curva2.GetEndPointReference(1))
-            doc.Create.NewDimension(vista, line2, reference)
+            x = x_lock_value + Funk.internal_units(offset, "mm")
+            z_left = ponto1
+            z_right = ponto2
+
+            vector_x = self.vectorX.Multiply(x)
+            vector_zleft = self.vectorZ.Multiply(z_left)
+            vector_zright = self.vectorZ.Multiply(z_right)
+
+            p1 = self.origem.Add(vector_zleft).Add(vector_x)
+            p2 = self.origem.Add(vector_zright).Add(vector_x)
+
+        elif zy_lock:
+
+            y = y_lock_value + Funk.internal_units(offset, "mm")
+            z_left = ponto1
+            z_right = ponto2
+
+            vector_y = self.vectorY.Multiply(y)
+            vector_zleft = self.vectorZ.Multiply(z_left)
+            vector_zright = self.vectorZ.Multiply(z_right)
+
+            p1 = self.origem.Add(vector_zleft).Add(vector_y)
+            p2 = self.origem.Add(vector_zright).Add(vector_y)
+
+        line = Line.CreateBound(p1, p2)
+        reference = ReferenceArray()
+        linha = doc.Create.NewDetailCurve(vista, line)
+        curva = linha.GeometryCurve
+        reference.Append(curva.GetEndPointReference(0))
+        reference.Append(curva.GetEndPointReference(1))
+        doc.Create.NewDimension(vista, line, reference)
         
 class Viga(Element):
 
