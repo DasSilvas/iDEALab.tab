@@ -2,11 +2,14 @@
 """Vistas Pilares"""
 # Load the Python Standard and DesignScript Libraries
 import clr
+
 clr.AddReference('ProtoGeometry')
 from Autodesk.DesignScript import Geometry as geom
+
 clr.AddReference("RevitNodes")
 import Revit
 from Revit import Elements
+
 clr.ImportExtensions(Revit.Elements)
 clr.ImportExtensions(Revit.GeometryConversion)
 clr.AddReference("RevitAPI")
@@ -18,21 +21,23 @@ from RevitServices.Persistence import DocumentManager
 from RevitServices.Transactions import TransactionManager
 
 clr.AddReference('RevitAPIUI')
-from Autodesk.Revit.UI import *
-
 import os.path
 import sys
+
+from Autodesk.Revit.UI import *
 
 # get the absolute path to the grandparent directory
 grandparent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 # add the grandparent directory to the system path
 sys.path.insert(0, grandparent_dir)
 
-from classes import Pilar, Funk
-from classes import RvtApiCategory as cat
-from classes import RvtApi as rvt
-from classes import RvtClasses as cls
 from pyrevit import forms, script
+
+from classes import Funk, Pilar
+from classes import RvtApi as rvt
+from classes import RvtApiCategory as cat
+from classes import RvtClasses as cls
+
 
 class ViewTemplates(forms.TemplateListItem):
     @property
@@ -83,7 +88,6 @@ for pilar in pilares:
     section_A_template = section_A.LookupParameter("View Template").Set(template)
 
     # Creates the dimensions of b and h of the column for the section view "Secçao A"
-
     cotar_altura = pilar.create_dimensions(doc, section_A, -pilar.h/2, pilar.h/2, OFFSET_DIM, x_lock_value=pilar.b/2, x_lock=True)
     cotar_largura = pilar.create_dimensions(doc, section_A, -pilar.b/2, pilar.b/2, OFFSET_DIM, y_lock_value=pilar.h/2, y_lock=True)
 

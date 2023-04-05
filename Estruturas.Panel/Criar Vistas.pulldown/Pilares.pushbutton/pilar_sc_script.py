@@ -68,20 +68,57 @@ template = forms.SelectFromList.show(
 if not template:
     script.exit()
 
+OFFSET_DIM = 175
+OFFSET_DIM_REC = OFFSET_DIM/2
+
 t = Transaction(doc, "Vistas Pilares")
 t.Start()
 
 for pilar in pilares:
 
+    #Create the section "Seccao A" view of the column
     section_A = pilar.criar_vista(doc, vista, 'Seccao A', OFFSET)
     section_A.Name = "2A - {} Secção A".format(pilar.nome)
     section_A_sheet = section_A.LookupParameter("Title on Sheet").Set('{} Secção A'.format(pilar.nome))
     section_A_template = section_A.LookupParameter("View Template").Set(template)
 
+    # Creates the dimensions of b and h of the column for the section view "Secçao A"
+    cotar_altura = pilar.create_dimensions(doc, section_A, -pilar.h/2, pilar.h/2, OFFSET_DIM, x_lock_value=pilar.b/2, x_lock=True)
+    cotar_largura = pilar.create_dimensions(doc, section_A, -pilar.b/2, pilar.b/2, OFFSET_DIM, y_lock_value=pilar.h/2, y_lock=True)
+
+    # Creates the dimensions for the cover of the column for the section view "Secçao A"
+    h_rec1 = -pilar.h/2
+    h_rec2 = h_rec1 + pilar.cover_length
+    h_rec3 = pilar.h/2 - pilar.cover_length
+    h_rec4 = pilar.h/2
+
+    rec_altura1 = pilar.create_dimensions(doc, section_A, h_rec1, h_rec2, OFFSET_DIM_REC, x_lock_value=pilar.b/2, x_lock=True)
+    rec_altura2 = pilar.create_dimensions(doc, section_A, h_rec3, h_rec4, OFFSET_DIM_REC, x_lock_value=pilar.b/2, x_lock=True)
+
+    b_rec1 = -pilar.b/2
+    b_rec2 = b_rec1 + pilar.cover_length
+    b_rec3 = pilar.b/2 - pilar.cover_length
+    b_rec4 = pilar.b/2
+
+    rec_altura1 = pilar.create_dimensions(doc, section_A, b_rec1, b_rec2, OFFSET_DIM_REC, y_lock_value=pilar.h/2, y_lock=True)
+    rec_altura2 = pilar.create_dimensions(doc, section_A, b_rec3, b_rec4, OFFSET_DIM_REC, y_lock_value=pilar.h/2, y_lock=True)
+
+    #Create the section "Seccao B" view of the column
     section_B = pilar.criar_vista(doc, vista, 'Seccao B', OFFSET)
     section_B.Name = "2B - {} Secção B".format(pilar.nome)
     section_B_sheet = section_B.LookupParameter("Title on Sheet").Set('{} Secção B'.format(pilar.nome))
     section_B_template = section_B.LookupParameter("View Template").Set(template)
+
+    # Creates the dimensions of b and h of the column for the section view "Secçao B"
+    cotar_altura = pilar.create_dimensions(doc, section_B, -pilar.h/2, pilar.h/2, OFFSET_DIM, x_lock_value=pilar.b/2, x_lock=True)
+    cotar_largura = pilar.create_dimensions(doc, section_B, -pilar.b/2, pilar.b/2, OFFSET_DIM, y_lock_value=pilar.h/2, y_lock=True)
+
+    rec_altura1 = pilar.create_dimensions(doc, section_B, h_rec1, h_rec2, OFFSET_DIM_REC, x_lock_value=pilar.b/2, x_lock=True)
+    rec_altura2 = pilar.create_dimensions(doc, section_B, h_rec3, h_rec4, OFFSET_DIM_REC, x_lock_value=pilar.b/2, x_lock=True)
+
+    # Creates the dimensions for the cover of the column for the section view "Secçao B"
+    rec_altura1 = pilar.create_dimensions(doc, section_B, b_rec1, b_rec2, OFFSET_DIM_REC, y_lock_value=pilar.h/2, y_lock=True)
+    rec_altura2 = pilar.create_dimensions(doc, section_B, b_rec3, b_rec4, OFFSET_DIM_REC, y_lock_value=pilar.h/2, y_lock=True)
 
     alcado_A = pilar.criar_vista(doc, vista, 'Alcado A', OFFSET)
     alcado_A.Name = "2C - {} Corte A".format(pilar.nome)

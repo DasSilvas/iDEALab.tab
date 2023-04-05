@@ -149,7 +149,7 @@ class Element:
         self.vectorZ = elemento.GetTransform().BasisZ
         self.bbox = elemento.get_BoundingBox(None)
         
-    def create_dimensions(self, doc, vista, ponto1, ponto2, offset, x_lock_value=0, y_lock_value=0, x_lock=False, y_lock=False, zx_lock=False, zy_lock=False):
+    def create_dimensions(self, doc, vista, ponto1, ponto2, offset, x_lock_value=0, y_lock_value=0, z_lock_value=0, x_lock=False, y_lock=False, xz_lock=False, yz_lock=False, zx_lock=False, zy_lock=False):
         
         if x_lock:
 
@@ -163,6 +163,19 @@ class Element:
 
             p1 = self.origem.Add(vector_x).Add(vector_yleft)
             p2 = self.origem.Add(vector_x).Add(vector_yright)
+        
+        elif xz_lock:
+
+            z = z_lock_value + Funk.internal_units(offset, "mm")
+            x_left = ponto1
+            x_right = ponto2
+
+            vector_z = self.vectorZ.Multiply(z)
+            vector_xleft = self.vectorX.Multiply(x_left)
+            vector_xright = self.vectorX.Multiply(x_right)
+
+            p1 = self.origem.Add(vector_xleft).Add(vector_z)
+            p2 = self.origem.Add(vector_xright).Add(vector_z)
 
         elif y_lock:
 
@@ -176,6 +189,19 @@ class Element:
 
             p1 = self.origem.Add(vector_xleft).Add(vector_y)
             p2 = self.origem.Add(vector_xright).Add(vector_y)
+
+        elif yz_lock:
+
+            z = z_lock_value + Funk.internal_units(offset, "mm")
+            y_left = ponto1
+            y_right = ponto2
+
+            vector_z = self.vectorZ.Multiply(z)
+            vector_yleft = self.vectorY.Multiply(y_left)
+            vector_yright = self.vectorY.Multiply(y_right)
+
+            p1 = self.origem.Add(vector_yleft).Add(vector_z)
+            p2 = self.origem.Add(vector_yright).Add(vector_z)
 
         elif zx_lock:
 
