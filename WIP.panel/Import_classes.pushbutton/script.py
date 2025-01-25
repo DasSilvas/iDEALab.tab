@@ -78,6 +78,14 @@ class ModalForm(WPFWindow):
                 sheets_name.append(item.Name)
         return sheets_name
 
+    def export_dwfx(self,sheets):
+        y = DWFXExportOptions()
+        y.MergedViews = True
+        a=ViewSet()
+        for s in sheets:
+            a.Insert(s)
+        doc.Export(self.save_path, self.dwfx_name,a,y)
+        """
     def export_dwfx(self):
         y = DWFXExportOptions()
         y.MergedViews = True
@@ -86,7 +94,7 @@ class ModalForm(WPFWindow):
             if item.IsChecked:
                 a.Insert(item.element)
         doc.Export(self.save_path, self.dwfx_name,a,y)
-
+        """
     def ext_dwg(self, name, sheet):
         options = None
         settings = FilteredElementCollector(doc).WherePasses(ElementClassFilter(ExportDWGSettings))
@@ -112,7 +120,7 @@ class ModalForm(WPFWindow):
         t = Transaction(doc, "Export DWFx")
         t.Start()
         if self.checkbox_dwfx:
-            self.export_dwfx()
+            self.export_dwfx(self.get_selected_sheets())
         t.Commit()    
  
         t = Transaction(doc, 'Export DWG')
