@@ -1,10 +1,32 @@
 ﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MainWindow" Height="450" Width="800">
+        Title="Export Sheets" Height="450" Width="450">
+    
     <TabControl>
         <TabItem Header="Sheets">
-            <Grid Background="#FFE5E5E5">
-                <Button Content="Importas nah" HorizontalAlignment="Left" Margin="174,160,0,0" VerticalAlignment="Top" Click="export_sheets"/>
+            <Grid>
+                <!-- Define two rows: one for the ListBox and one for the button -->
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <!-- Button takes only as much space as needed -->
+                    <RowDefinition Height="*" />
+                    <!-- ListBox takes up all available space -->
+                    <RowDefinition Height="Auto" />
+                    <!-- Button takes only as much space as needed -->
+                </Grid.RowDefinitions>
+                <TextBox x:Name="UI_SearchBox" Grid.Row="0" Margin="10" Width="420" 
+                     HorizontalAlignment="Left" VerticalAlignment="Center" 
+                     TextChanged="SearchBox_TextChanged"
+                     />
+                <ListBox x:Name="UI_CheckboxList" Grid.Row="1">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Button Content="Check All" Grid.Row="2" HorizontalAlignment="Right" Margin="10" Width="100" Click="check_all"/>
+                <Button Content="Check None" Grid.Row="2" HorizontalAlignment="Left" Margin="10" Width="100" Click="check_none"/>
             </Grid>
         </TabItem>
         <TabItem Header="Export">
@@ -15,6 +37,7 @@
                 <TextBlock HorizontalAlignment="Left" Margin="113,131,0,0" TextWrapping="Wrap" Text="Save Path:" VerticalAlignment="Top"/>
                 <TextBox x:Name="UI_dwfx_name" HorizontalAlignment="Left" Margin="301,69,0,0" TextWrapping="Wrap" Text="DWFx exportado" VerticalAlignment="Top" Width="120"/>
                 <TextBlock HorizontalAlignment="Left" Margin="193,69,0,0" TextWrapping="Wrap" Text="Nome do ficheiro:" VerticalAlignment="Top" Height="16" Width="103"/>
+                <Button Content="Exportar" HorizontalAlignment="Left" Margin="113,172,0,0" VerticalAlignment="Top" Click="export_sheets"/>
             </Grid>
         </TabItem>
     </TabControl>
