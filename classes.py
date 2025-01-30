@@ -4,7 +4,7 @@ Tentar usar parent class and child classes
 """
 
 import clr
-import Revit
+#import Revit
 clr.AddReference("RevitAPI")
 from Autodesk.Revit.DB import *
 from Autodesk.Revit.DB.Structure import *
@@ -21,6 +21,7 @@ class RvtApiCategory:
     REBAR = BuiltInCategory.OST_Rebar
     BAR_STANDART = RebarStyle.Standard
     BAR_STIRRUP = RebarStyle.StirrupTie
+    SHEETS = BuiltInCategory.OST_Sheets
 
 class RvtParameterName:
 

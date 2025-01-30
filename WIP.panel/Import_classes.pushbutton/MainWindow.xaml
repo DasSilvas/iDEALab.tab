@@ -19,10 +19,13 @@
                      HorizontalAlignment="Left" VerticalAlignment="Center" 
                      TextChanged="SearchBox_TextChanged"
                      />
-                <ListBox x:Name="UI_CheckboxList" Grid.Row="1">
+                <ListBox x:Name="UI_CheckboxList" Grid.Row="1"
+                         SelectionMode="Single"
+                         MouseLeftButtonUp="on_item_clicked"
+                         >
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}"/>
+                            <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}" />
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
@@ -39,6 +42,22 @@
                 <TextBox x:Name="UI_dwfx_name" HorizontalAlignment="Left" Margin="240,62,0,0" TextWrapping="Wrap" Text="DWFx exportado" VerticalAlignment="Top" Width="120"/>
                 <TextBlock HorizontalAlignment="Left" Margin="137,63,0,0" TextWrapping="Wrap" Text="Nome do ficheiro:" VerticalAlignment="Top" Height="16" Width="103"/>
                 <Button Content="Exportar" HorizontalAlignment="Left" Margin="64,183,0,0" VerticalAlignment="Top" Click="export_sheets"/>
+                <!-- ComboBox x:Name="UI_dwg_opts" HorizontalAlignment="Left" Margin="137,101,0,0" VerticalAlignment="Top" Width="120"-->
+                <ComboBox x:Name="UI_dwg_opts"
+                          ItemsSource="{Binding ListItem}"
+                          SelectedValuePath="element"
+                          HorizontalAlignment="Left" Margin="137,101,0,0" VerticalAlignment="Top" Width="120"
+                          SelectedValue="{Binding element, Mode=TwoWay}"
+                          SelectionChanged="on_combo_box_selection_changed">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Name}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <CheckBox x:Name="UI_create_dwg_folder" Content="Create DWG Folder" HorizontalAlignment="Left" Margin="289,105,0,0" VerticalAlignment="Top"/>
             </Grid>
         </TabItem>
     </TabControl>

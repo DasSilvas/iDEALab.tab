@@ -21,21 +21,23 @@ from pyrevit.forms import WPFWindow
 from classes import RvtApiCategory as cat
 
 from System.Windows.Controls import Orientation, CheckBox, DockPanel, Button,ComboBoxItem, TextBox, ListBoxItem, StackPanel, TextBlock, WrapPanel, Border, ScrollViewer
+import System.Windows.Input as Input
+from System.ComponentModel import INotifyPropertyChanged, PropertyChangedEventArgs
 from System.Collections.Generic import List
 from System.Windows             import Visibility
 import wpf
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+last_selected_index = None 
 
-dwg_opt = "ISO13567_CAD"
-
-class ListItem:
+class ListItem():
     """Helper Class for displaying selected sheets in my custom GUI."""
     def __init__(self,  Name='Unnamed', element = None, checked = False):
         self.Name       = Name
         self.element    = element
         self.IsChecked  = checked
+
 
 def ProcessParallelLists(_func, *lists):
 	return map( lambda *xs: ProcessParallelLists(_func, *xs) if all(type(x) is list for x in xs) else _func(*xs), *lists )
@@ -44,7 +46,13 @@ class ModalForm(WPFWindow):
     def __init__(self, xaml_source):
         self.form = WPFWindow.__init__(self,xaml_source)
         self.populate_views_listbox()
+        self.populate_combo_box()
+        self.dwg_setup = None
+        self.last_selected_index = None  # Store last selected index for Shift+Click
+        # ✅ Attach event for ListBox item selection
+        #self.UI_CheckboxList.SelectionChanged += self.on_item_clicked
         self.ShowDialog()
+
 
     def get_sheets_collector(self):
          collector = FilteredElementCollector(doc)
@@ -53,6 +61,11 @@ class ModalForm(WPFWindow):
 
     def get_sheets(self):
         return self.get_sheets_collector()
+    
+    def get_dwg_opts(self):
+        dwg_settings = FilteredElementCollector(doc).WherePasses(ElementClassFilter(ExportDWGSettings))
+        settings = [ListItem(setting.Name, setting.GetDWGExportOptions()) for setting in dwg_settings]
+        return settings
 
     def populate_views_listbox(self):
         """Populate the ListBox with sheets in the project."""
@@ -63,6 +76,21 @@ class ModalForm(WPFWindow):
         self.sheet_items =sorted([ListItem('{} - {}'.format(view.SheetNumber, view.Name), view) for view in views], key=lambda item: item.Name)
         self.UI_CheckboxList.ItemsSource = self.sheet_items 
 
+    def populate_combo_box(self):
+        dwg_options = self.get_dwg_opts()
+        self.UI_dwg_opts.ItemsSource = dwg_options
+        #for item in dwg_options:
+            #self.UI_dwg_opts.Items.Add(item.Name)
+    
+        #self.UI_dwg_opts.SelectedValuePath = dwg_options
+
+    def on_combo_box_selection_changed(self, sender, e):
+        self.dwg_setup = self.UI_dwg_opts.SelectedValue   # Gets the 'Element' value
+        #selected_name = self.UI_dwg_opts.Text  # Gets the displayed 'Name'
+
+        #print(f"Selected Display Name: {selected_name}")
+        #print(f"Selected Element: {selected_element}")
+    
     def get_selected_sheets(self):
         """Retrieve selected sheets."""
         selected_sheets = []
@@ -85,29 +113,25 @@ class ModalForm(WPFWindow):
         for s in sheets:
             a.Insert(s)
         doc.Export(self.save_path, self.dwfx_name,a,y)
-        """
-    def export_dwfx(self):
-        y = DWFXExportOptions()
-        y.MergedViews = True
-        a=ViewSet()
-        for item in self.sheet_items:
-            if item.IsChecked:
-                a.Insert(item.element)
-        doc.Export(self.save_path, self.dwfx_name,a,y)
-        """
+        
     def ext_dwg(self, name, sheet):
-        options = None
-        settings = FilteredElementCollector(doc).WherePasses(ElementClassFilter(ExportDWGSettings))
-        for element in settings:
-            if element.Name == "ISO13567_CAD":
-                options = element.GetDWGExportOptions()
-                break 
-            if options is None:
-                 options = DWGExportOptions()
+        if self.dwg_setup is None:
+            options = DWGExportOptions()
+        else:
+            options = self.dwg_setup
+
         options.MergedViews = True
         sheets = List[ElementId]()
         sheets.Add(sheet.Id)
-        result = doc.Export(self.save_path, name, sheets, options)
+
+        if self.create_dwg_folder:
+            dwg_folder = os.path.join(self.save_path, "DWG")
+            if not os.path.exists(dwg_folder):
+                os.makedirs(dwg_folder)   
+        else:
+            dwg_folder = self.save_path
+
+        result = doc.Export(dwg_folder, name, sheets, options)
         return result
         
     def export_dwg(self):
@@ -160,7 +184,83 @@ class ModalForm(WPFWindow):
             self.UI_CheckboxList.ItemsSource = filtered_items
         else:
             self.UI_CheckboxList.ItemsSource = self.sheet_items
- 
+   
+    def on_item_clicked(self, sender, e):
+        """Handles Shift+Click selection for checkboxes in the ListBox."""
+        listbox = self.UI_CheckboxList
+        items = listbox.ItemsSource
+        clicked_item = listbox.SelectedItem
+
+        if not clicked_item:
+            return
+
+        # Get the index of the clicked item
+        current_index = listbox.Items.IndexOf(clicked_item)
+
+        # If Shift key is pressed, select a range of items and check/uncheck them
+        if Input.Keyboard.IsKeyDown(Input.Key.LeftShift) or Input.Keyboard.IsKeyDown(Input.Key.RightShift):
+            if self.last_selected_index is not None:
+                # Sort the selected range to ensure the indices are in order
+                start, end = sorted((self.last_selected_index, current_index))
+
+                for i in range(start, end + 1):
+                    items[i].IsChecked = True  # ✅ Check all checkboxes in the range
+
+                # Refresh the ListBox to reflect the checkbox changes
+                self.UI_CheckboxList.ItemsSource = None
+                self.UI_CheckboxList.ItemsSource = self.sheet_items  # Reset the ItemsSource
+
+            # Update last selected item
+            self.last_selected_index = current_index
+        else:
+            # If Shift is not pressed, just select the item without checking
+            self.last_selected_index = current_index  # Update last selected item
+            clicked_item.IsChecked = not clicked_item.IsChecked  # Toggle checkbox when not Shift-clicking
+
+    """
+    def on_item_clicked(self, sender, e):
+        Handles Shift+Click selection for checkboxes in the ListBox.
+        listbox = self.UI_CheckboxList
+        items = listbox.ItemsSource
+        clicked_item = listbox.SelectedItem
+
+        if not clicked_item:
+            return
+
+        # Get the index of the clicked item
+        current_index = listbox.Items.IndexOf(clicked_item)
+
+        # If Shift key is pressed, check all items in the range
+        if Input.Keyboard.IsKeyDown(Input.Key.LeftShift) or Input.Keyboard.IsKeyDown(Input.Key.RightShift):
+            if self.last_selected_index is not None:
+                start, end = sorted((self.last_selected_index, current_index))
+
+                for i in range(start, end + 1):
+                    items[i].IsChecked = True  # ✅ Check all checkboxes in range
+
+            self.UI_CheckboxList.ItemsSource = None
+            self.UI_CheckboxList.ItemsSource = self.sheet_items
+            self.last_selected_index = current_index
+        else:
+            self.last_selected_index = current_index  # Update last selected item
+
+
+    def on_checkbox_click(self, sender, e):
+        Ensures clicking a CheckBox selects the ListBox item and enables Shift+Click.
+        checkbox = sender
+        item = checkbox.DataContext
+
+        # Select the corresponding ListBox item
+        self.UI_CheckboxList.SelectedItem = item
+
+        # ✅ Manually trigger Shift+Click behavior if Shift is held
+        if Input.Keyboard.IsKeyDown(Input.Key.LeftShift) or Input.Keyboard.IsKeyDown(Input.Key.RightShift):
+            self.on_item_clicked(self.UI_CheckboxList, None)
+    """
+    @property
+    def create_dwg_folder(self):
+        return self.UI_create_dwg_folder.IsChecked
+
     @property
     def checkbox_dwfx(self):
         return self.UI_export_dwfx.IsChecked
