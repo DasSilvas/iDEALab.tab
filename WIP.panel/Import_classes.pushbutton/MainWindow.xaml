@@ -38,7 +38,7 @@
                 <CheckBox x:Name="UI_export_dwfx" Content="DWFx" HorizontalAlignment="Left" Margin="64,63,0,0" VerticalAlignment="Top"/>
                 <CheckBox x:Name="UI_export_dwg" Content="DWG" HorizontalAlignment="Left" Margin="64,101,0,0" VerticalAlignment="Top"/>
                 <TextBox x:Name="UI_save_path" HorizontalAlignment="Left" Margin="137,131,0,0" TextWrapping="Wrap" Text="TextBox" VerticalAlignment="Top" Width="250"/>
-                <TextBlock HorizontalAlignment="Left" Margin="64,131,0,0" TextWrapping="Wrap" Text="Save Path:" VerticalAlignment="Top"/>
+                <Button Content="Save Path:" HorizontalAlignment="Left" Margin="64,131,0,0" VerticalAlignment="Top" Click="save_button"/>
                 <TextBox x:Name="UI_dwfx_name" HorizontalAlignment="Left" Margin="240,62,0,0" TextWrapping="Wrap" Text="DWFx exportado" VerticalAlignment="Top" Width="120"/>
                 <TextBlock HorizontalAlignment="Left" Margin="137,63,0,0" TextWrapping="Wrap" Text="Nome do ficheiro:" VerticalAlignment="Top" Height="16" Width="103"/>
                 <Button Content="Exportar" HorizontalAlignment="Left" Margin="64,183,0,0" VerticalAlignment="Top" Click="export_sheets"/>

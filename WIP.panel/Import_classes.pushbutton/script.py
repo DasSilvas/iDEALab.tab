@@ -22,7 +22,9 @@ from classes import RvtApiCategory as cat
 
 from System.Windows.Controls import Orientation, CheckBox, DockPanel, Button,ComboBoxItem, TextBox, ListBoxItem, StackPanel, TextBlock, WrapPanel, Border, ScrollViewer
 import System.Windows.Input as Input
-from System.ComponentModel import INotifyPropertyChanged, PropertyChangedEventArgs
+from System.Windows import Window
+from System.Windows.Forms import FolderBrowserDialog, DialogResult, OpenFileDialog
+
 from System.Collections.Generic import List
 from System.Windows             import Visibility
 import wpf
@@ -49,10 +51,7 @@ class ModalForm(WPFWindow):
         self.populate_combo_box()
         self.dwg_setup = None
         self.last_selected_index = None  # Store last selected index for Shift+Click
-        # ✅ Attach event for ListBox item selection
-        #self.UI_CheckboxList.SelectionChanged += self.on_item_clicked
         self.ShowDialog()
-
 
     def get_sheets_collector(self):
          collector = FilteredElementCollector(doc)
@@ -79,17 +78,9 @@ class ModalForm(WPFWindow):
     def populate_combo_box(self):
         dwg_options = self.get_dwg_opts()
         self.UI_dwg_opts.ItemsSource = dwg_options
-        #for item in dwg_options:
-            #self.UI_dwg_opts.Items.Add(item.Name)
-    
-        #self.UI_dwg_opts.SelectedValuePath = dwg_options
 
     def on_combo_box_selection_changed(self, sender, e):
         self.dwg_setup = self.UI_dwg_opts.SelectedValue   # Gets the 'Element' value
-        #selected_name = self.UI_dwg_opts.Text  # Gets the displayed 'Name'
-
-        #print(f"Selected Display Name: {selected_name}")
-        #print(f"Selected Element: {selected_element}")
     
     def get_selected_sheets(self):
         """Retrieve selected sheets."""
@@ -217,46 +208,18 @@ class ModalForm(WPFWindow):
             self.last_selected_index = current_index  # Update last selected item
             clicked_item.IsChecked = not clicked_item.IsChecked  # Toggle checkbox when not Shift-clicking
 
-    """
-    def on_item_clicked(self, sender, e):
-        Handles Shift+Click selection for checkboxes in the ListBox.
-        listbox = self.UI_CheckboxList
-        items = listbox.ItemsSource
-        clicked_item = listbox.SelectedItem
+    def save_button(self, sender, e):
+            """Handles the Save button click event and opens the folder picker."""
+            folder_dialog = FolderBrowserDialog()
 
-        if not clicked_item:
-            return
+            # Show the folder picker dialog
+            result = folder_dialog.ShowDialog()
 
-        # Get the index of the clicked item
-        current_index = listbox.Items.IndexOf(clicked_item)
+            if result == DialogResult.OK:
+                # If a folder is selected, update the TextBox with the folder path
+                selected_path = folder_dialog.SelectedPath
+                self.UI_save_path.Text = selected_path  # Set the selected path to the TextBox
 
-        # If Shift key is pressed, check all items in the range
-        if Input.Keyboard.IsKeyDown(Input.Key.LeftShift) or Input.Keyboard.IsKeyDown(Input.Key.RightShift):
-            if self.last_selected_index is not None:
-                start, end = sorted((self.last_selected_index, current_index))
-
-                for i in range(start, end + 1):
-                    items[i].IsChecked = True  # ✅ Check all checkboxes in range
-
-            self.UI_CheckboxList.ItemsSource = None
-            self.UI_CheckboxList.ItemsSource = self.sheet_items
-            self.last_selected_index = current_index
-        else:
-            self.last_selected_index = current_index  # Update last selected item
-
-
-    def on_checkbox_click(self, sender, e):
-        Ensures clicking a CheckBox selects the ListBox item and enables Shift+Click.
-        checkbox = sender
-        item = checkbox.DataContext
-
-        # Select the corresponding ListBox item
-        self.UI_CheckboxList.SelectedItem = item
-
-        # ✅ Manually trigger Shift+Click behavior if Shift is held
-        if Input.Keyboard.IsKeyDown(Input.Key.LeftShift) or Input.Keyboard.IsKeyDown(Input.Key.RightShift):
-            self.on_item_clicked(self.UI_CheckboxList, None)
-    """
     @property
     def create_dwg_folder(self):
         return self.UI_create_dwg_folder.IsChecked
