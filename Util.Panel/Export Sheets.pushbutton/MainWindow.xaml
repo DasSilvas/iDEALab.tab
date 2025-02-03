@@ -1,0 +1,64 @@
+﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Export Sheets" Height="450" Width="450"
+        WindowStartupLocation="CenterScreen"
+        HorizontalContentAlignment="Center">
+    <TabControl>
+        <TabItem Header="Sheets">
+            <Grid>
+                <!-- Define two rows: one for the ListBox and one for the button -->
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <!-- Button takes only as much space as needed -->
+                    <RowDefinition Height="*" />
+                    <!-- ListBox takes up all available space -->
+                    <RowDefinition Height="Auto" />
+                    <!-- Button takes only as much space as needed -->
+                </Grid.RowDefinitions>
+                <TextBox x:Name="UI_SearchBox" Grid.Row="0" Margin="10" Width="400" 
+                     HorizontalAlignment="Left" VerticalAlignment="Center" 
+                     TextChanged="SearchBox_TextChanged"
+                     />
+                <ListBox x:Name="UI_CheckboxList" Grid.Row="1"
+                         SelectionMode="Single"
+                         MouseLeftButtonUp="on_item_clicked"
+                         >
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Button Content="Check All" Grid.Row="2" HorizontalAlignment="Right" Margin="10" Width="100" Click="check_all"/>
+                <Button Content="Check None" Grid.Row="2" HorizontalAlignment="Left" Margin="10" Width="100" Click="check_none"/>
+            </Grid>
+        </TabItem>
+        <TabItem Header="Export">
+            <Grid Background="#FFE5E5E5">
+                <CheckBox x:Name="UI_export_dwfx" Content="DWFx" HorizontalAlignment="Left" Margin="64,63,0,0" VerticalAlignment="Top"/>
+                <CheckBox x:Name="UI_export_dwg" Content="DWG" HorizontalAlignment="Left" Margin="64,101,0,0" VerticalAlignment="Top"/>
+                <TextBox x:Name="UI_save_path" HorizontalAlignment="Left" Margin="137,131,0,0" TextWrapping="Wrap" Text="TextBox" VerticalAlignment="Top" Width="250"/>
+                <Button Content="Save Path:" HorizontalAlignment="Left" Margin="64,131,0,0" VerticalAlignment="Top" Click="save_button"/>
+                <TextBox x:Name="UI_dwfx_name" HorizontalAlignment="Left" Margin="240,62,0,0" TextWrapping="Wrap" Text="DWFx exportado" VerticalAlignment="Top" Width="120"/>
+                <TextBlock HorizontalAlignment="Left" Margin="137,63,0,0" TextWrapping="Wrap" Text="Nome do ficheiro:" VerticalAlignment="Top" Height="16" Width="103"/>
+                <Button Content="Exportar" HorizontalAlignment="Left" Margin="64,183,0,0" VerticalAlignment="Top" Click="export_sheets"/>
+                <!-- ComboBox x:Name="UI_dwg_opts" HorizontalAlignment="Left" Margin="137,101,0,0" VerticalAlignment="Top" Width="120"-->
+                <ComboBox x:Name="UI_dwg_opts"
+                          ItemsSource="{Binding ListItem}"
+                          SelectedValuePath="element"
+                          HorizontalAlignment="Left" Margin="137,101,0,0" VerticalAlignment="Top" Width="120"
+                          SelectedValue="{Binding element, Mode=TwoWay}"
+                          SelectionChanged="on_combo_box_selection_changed">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Name}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <CheckBox x:Name="UI_create_dwg_folder" Content="Create DWG Folder" HorizontalAlignment="Left" Margin="289,105,0,0" VerticalAlignment="Top"/>
+            </Grid>
+        </TabItem>
+    </TabControl>
+</Window>
