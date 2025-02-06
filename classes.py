@@ -22,16 +22,22 @@ class RvtApiCategory:
     BAR_STANDART = RebarStyle.Standard
     BAR_STIRRUP = RebarStyle.StirrupTie
     SHEETS = BuiltInCategory.OST_Sheets
+    PIPES = BuiltInCategory.OST_PipeCurves
+    PIPE_FITTINGS = BuiltInCategory.OST_PipeFitting
+    PLUMBING_FIXTURES = BuiltInCategory.OST_PlumbingFixtures
 
 class RvtParameterName:
 
     HOOK_NAME_ESTRIBO = "Stirrup/Tie Seismic - 135 deg."
     HOOK_NAME_FUND = "50Ø"
     HOOK_ROTATION = "Hook Rotation At Start"
+    PIPE_SYSTEM_TYPE = BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM
+    FIXTURE_UNITS = BuiltInParameter.RBS_PIPE_FIXTURE_UNITS_PARAM
 
 class RvtClasses:
     VIEW_TYPE = ViewFamilyType
     VIEW = View
+    PIPES = MEPCurve
 
 class RvtApi:
 
@@ -81,6 +87,16 @@ class RvtApi:
         section = ViewSection.CreateSection(doc, vista, corte_aox)
 
         return section
+
+    @staticmethod
+    def get_elements_byparameter(doc, element_class, filter_parameter, filter_value):
+        #Parameter to filter
+        f_parameter = ParameterValueProvider(ElementId(filter_parameter))
+        #Create a rule
+        f_rule = FilterStringRule(f_parameter, FilterStringEquals(), filter_value)
+        filter_system = ElementParameterFilter(f_rule)
+        elements = FilteredElementCollector(doc).OfClass(element_class).WherePasses(filter_system).ToElements()
+        return elements
 
 class Funk:
 
@@ -840,3 +856,24 @@ class Sapata(Element):
         corte_b.Name = "1C - {} Corte B".format(self.nome)
         corte_b.LookupParameter("Title on Sheet").Set('{} Corte B'.format(self.nome))
         corte_b.LookupParameter("View Template").Set(template)
+
+class Pipes():
+
+    def __init__(self, doc, elemento):
+        self.elemento = elemento
+        self.nome = elemento.Name
+        self.type = doc.GetElement(elemento.GetTypeId())
+        self.caudal_acumulado = elemento.get_Parameter(RvtParameterName.FIXTURE_UNITS).AsDouble()
+
+class PlumbingFixture(Element):
+
+    def __init__(self, doc, elemento):
+        Element.__init__(self, doc, elemento)
+        self.system_type = doc.GetElement(elemento.get_Parameter(RvtParameterName.PIPE_SYSTEM_TYPE).AsElementId())
+
+    def get_system_name(self):
+        try:
+            system_name = self.system_type.Name
+        except:
+            system_name = "null"
+        return system_name
