@@ -33,6 +33,7 @@ class RvtParameterName:
     HOOK_ROTATION = "Hook Rotation At Start"
     PIPE_SYSTEM_TYPE = BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM
     FIXTURE_UNITS = BuiltInParameter.RBS_PIPE_FIXTURE_UNITS_PARAM
+    PIPE_SYSTEM_CLASSIFICATION = "System Classsification"
 
 class RvtClasses:
     VIEW_TYPE = ViewFamilyType
@@ -864,12 +865,13 @@ class Pipes():
         self.nome = elemento.Name
         self.type = doc.GetElement(elemento.GetTypeId())
         self.caudal_acumulado = elemento.get_Parameter(RvtParameterName.FIXTURE_UNITS).AsDouble()
+        self.system_type = elemento.LookupParameter("System Classification").AsString()
 
 class PlumbingFixture(Element):
 
     def __init__(self, doc, elemento):
         Element.__init__(self, doc, elemento)
-        self.system_type = doc.GetElement(elemento.get_Parameter(RvtParameterName.PIPE_SYSTEM_TYPE).AsElementId())
+        self.system_type = elemento.LookupParameter("System Classification").AsString()
 
     def get_system_name(self):
         try:
@@ -877,3 +879,12 @@ class PlumbingFixture(Element):
         except:
             system_name = "null"
         return system_name
+    
+class PipeFitting(Element):
+    def __init__(self, doc, elemento):
+        Element.__init__(self, doc, elemento)
+        self.system_type = elemento.LookupParameter("System Classification").AsString()
+
+    @classmethod
+    def filter_by_system(cls, fittings, system):
+        return [fitting for fitting in fittings if fitting.system_type == system]
