@@ -4,7 +4,7 @@
         WindowStartupLocation="CenterScreen"
         HorizontalContentAlignment="Center">
     <TabControl>
-        <TabItem Header="Sheets">
+        <TabItem Header="Folhas">
             <Grid>
                 <!-- Define two rows: one for the ListBox and one for the button -->
                 <Grid.RowDefinitions>
@@ -29,24 +29,24 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
-                <Button Content="Check All" Grid.Row="2" HorizontalAlignment="Right" Margin="10" Width="100" Click="check_all"/>
-                <Button Content="Check None" Grid.Row="2" HorizontalAlignment="Left" Margin="10" Width="100" Click="check_none"/>
+                <Button Content="Selecionar Tudo" Grid.Row="2" HorizontalAlignment="Right" Margin="10" Width="100" Click="check_all"/>
+                <Button Content="Selecionar Nada" Grid.Row="2" HorizontalAlignment="Left" Margin="10" Width="100" Click="check_none"/>
             </Grid>
         </TabItem>
-        <TabItem Header="Export">
+        <TabItem Header="Exportar">
             <Grid Background="#FFE5E5E5">
-                <CheckBox x:Name="UI_export_dwfx" Content="DWFx" HorizontalAlignment="Left" Margin="64,63,0,0" VerticalAlignment="Top"/>
-                <CheckBox x:Name="UI_export_dwg" Content="DWG" HorizontalAlignment="Left" Margin="64,101,0,0" VerticalAlignment="Top"/>
-                <TextBox x:Name="UI_save_path" HorizontalAlignment="Left" Margin="137,131,0,0" TextWrapping="Wrap" Text="TextBox" VerticalAlignment="Top" Width="250"/>
-                <Button Content="Save Path:" HorizontalAlignment="Left" Margin="64,131,0,0" VerticalAlignment="Top" Click="save_button"/>
-                <TextBox x:Name="UI_dwfx_name" HorizontalAlignment="Left" Margin="240,62,0,0" TextWrapping="Wrap" Text="DWFx exportado" VerticalAlignment="Top" Width="120"/>
-                <TextBlock HorizontalAlignment="Left" Margin="137,63,0,0" TextWrapping="Wrap" Text="Nome do ficheiro:" VerticalAlignment="Top" Height="16" Width="103"/>
-                <Button Content="Exportar" HorizontalAlignment="Left" Margin="64,183,0,0" VerticalAlignment="Top" Click="export_sheets"/>
+                <CheckBox x:Name="UI_export_dwfx" Content="Exportar DWFx" HorizontalAlignment="Left" Margin="35,26,0,0" VerticalAlignment="Top"/>
+                <CheckBox x:Name="UI_export_dwg" Content="Exportar DWG" HorizontalAlignment="Left" Margin="287,26,0,0" VerticalAlignment="Top"/>
+                <TextBox x:Name="UI_save_path" HorizontalAlignment="Left" Margin="113,205,0,0" TextWrapping="Wrap" Text="Colar caminho ou carregar Guardar em:" VerticalAlignment="Top" Width="296"/>
+                <Button Content="Guardar em:" HorizontalAlignment="Left" Margin="35,203,0,0" VerticalAlignment="Top" Click="save_button"/>
+                <TextBox x:Name="UI_dwfx_name" HorizontalAlignment="Left" Margin="35,147,0,0" TextWrapping="Wrap" Text="DWFx exportado" VerticalAlignment="Top" Width="155"/>
+                <TextBlock HorizontalAlignment="Left" Margin="35,117,0,0" TextWrapping="Wrap" Text="Nome do ficheiro Dwfx:" VerticalAlignment="Top" Height="16" Width="140"/>
+                <Button Content="Exportar" HorizontalAlignment="Center" Margin="0,305,0,0" VerticalAlignment="Top" Click="export_sheets" Height="52" Width="374"/>
                 <!-- ComboBox x:Name="UI_dwg_opts" HorizontalAlignment="Left" Margin="137,101,0,0" VerticalAlignment="Top" Width="120"-->
                 <ComboBox x:Name="UI_dwg_opts"
                           ItemsSource="{Binding ListItem}"
                           SelectedValuePath="element"
-                          HorizontalAlignment="Left" Margin="137,101,0,0" VerticalAlignment="Top" Width="120"
+                          HorizontalAlignment="Left" Margin="289,117,0,0" VerticalAlignment="Top" Width="120"
                           SelectedValue="{Binding element, Mode=TwoWay}"
                           SelectionChanged="on_combo_box_selection_changed">
                     <ComboBox.ItemTemplate>
@@ -57,7 +57,10 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <CheckBox x:Name="UI_create_dwg_folder" Content="Create DWG Folder" HorizontalAlignment="Left" Margin="289,105,0,0" VerticalAlignment="Top"/>
+                <CheckBox x:Name="UI_create_dwg_folder" Content="Criar pasta DWG" HorizontalAlignment="Left" Margin="287,58,0,0" VerticalAlignment="Top"/>
+                <CheckBox x:Name="UI_create_dwfx_folder" Content="Criar pasta DWFx" HorizontalAlignment="Left" Margin="35,58,0,0" VerticalAlignment="Top"/>
+                <TextBlock HorizontalAlignment="Left" Margin="289,91,0,0" TextWrapping="Wrap" Text="Opções de DWG:" VerticalAlignment="Top"/>
+                <CheckBox x:Name="UI_dwfx_mergeviews" IsChecked="True" Content="Ficheiro único de Dwfx" HorizontalAlignment="Left" Margin="35,91,0,0" VerticalAlignment="Top"/>
             </Grid>
         </TabItem>
     </TabControl>

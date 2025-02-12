@@ -2,6 +2,7 @@
 
 import os.path
 import sys
+import re
 # get the absolute path to the grandparent directory
 grandparent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 # add the grandparent directory to the system path
@@ -39,7 +40,6 @@ class ListItem():
         self.Name       = Name
         self.element    = element
         self.IsChecked  = checked
-
 
 def ProcessParallelLists(_func, *lists):
 	return map( lambda *xs: ProcessParallelLists(_func, *xs) if all(type(x) is list for x in xs) else _func(*xs), *lists )
@@ -96,7 +96,13 @@ class ModalForm(WPFWindow):
             if item.IsChecked:
                 sheets_name.append(item.Name)
         return sheets_name
-
+    
+    def create_sheet_name1(self):
+        for item in self.sheet_items:
+            if item.IsChecked:
+                name = item.Name
+        return name
+    """
     def export_dwfx(self,sheets):
         y = DWFXExportOptions()
         y.MergedViews = True
@@ -104,6 +110,26 @@ class ModalForm(WPFWindow):
         for s in sheets:
             a.Insert(s)
         doc.Export(self.save_path, self.dwfx_name,a,y)
+        """  
+    def export_dwfx(self,sheets, merge):
+        y = DWFXExportOptions()
+        a=ViewSet()
+        for s in sheets:
+            a.Insert(s)
+        
+        if self.create_dwfx_folder:
+            dwfx_folder = os.path.join(self.save_path, "DWFx")
+            if not os.path.exists(dwfx_folder):
+                os.makedirs(dwfx_folder)  
+        else:
+            dwfx_folder = self.save_path
+
+        if merge:
+            y.MergedViews = True
+            doc.Export(self.save_path, dwfx_folder,a,y)  
+        else:
+            y.MergedViews = False
+            doc.Export(dwfx_folder, None,a,y)
         
     def ext_dwg(self, name, sheet):
         if self.dwg_setup is None:
@@ -135,7 +161,7 @@ class ModalForm(WPFWindow):
         t = Transaction(doc, "Export DWFx")
         t.Start()
         if self.checkbox_dwfx:
-            self.export_dwfx(self.get_selected_sheets())
+            self.export_dwfx(self.get_selected_sheets(), self.dwfx_mergeviews)
         t.Commit()    
  
         t = Transaction(doc, 'Export DWG')
@@ -145,6 +171,8 @@ class ModalForm(WPFWindow):
         t.Commit()
 
         tg.Assimilate()
+
+        
 
     def check_all(self, sender,e):
         # Set IsCheked to True for all items in the ListBox
@@ -223,6 +251,14 @@ class ModalForm(WPFWindow):
     @property
     def create_dwg_folder(self):
         return self.UI_create_dwg_folder.IsChecked
+    
+    @property
+    def create_dwfx_folder(self):
+        return self.UI_create_dwfx_folder.IsChecked
+    
+    @property
+    def dwfx_mergeviews(self):
+        return self.UI_dwfx_mergeviews.IsChecked
 
     @property
     def checkbox_dwfx(self):
