@@ -126,7 +126,7 @@ class ModalForm(WPFWindow):
 
         if merge:
             y.MergedViews = True
-            doc.Export(self.save_path, dwfx_folder,a,y)  
+            doc.Export(dwfx_folder,self.dwfx_name,a,y)  
         else:
             y.MergedViews = False
             doc.Export(dwfx_folder, None,a,y)
