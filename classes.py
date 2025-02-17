@@ -866,19 +866,21 @@ class Pipes():
         self.type = doc.GetElement(elemento.GetTypeId())
         self.caudal_acumulado = elemento.get_Parameter(RvtParameterName.FIXTURE_UNITS).AsDouble()
         self.system_type = elemento.LookupParameter("System Classification").AsString()
+        self.tubo_queda = elemento.LookupParameter("Tudo de Queda")
+
+    def set_diameter(self, diameter):
+        self.elemento.LookupParameter("Diameter").Set(diameter)
 
 class PlumbingFixture(Element):
 
     def __init__(self, doc, elemento):
         Element.__init__(self, doc, elemento)
         self.system_type = elemento.LookupParameter("System Classification").AsString()
+        #self.caudal_acumulado = elemento.get_Parameter(RvtParameterName.FIXTURE_UNITS).AsDouble()
 
-    def get_system_name(self):
-        try:
-            system_name = self.system_type.Name
-        except:
-            system_name = "null"
-        return system_name
+    @classmethod
+    def filter_by_system(cls, fixtures, system):
+        return [fixture for fixture in fixtures if fixture.system_type == system]
     
 class PipeFitting(Element):
     def __init__(self, doc, elemento):

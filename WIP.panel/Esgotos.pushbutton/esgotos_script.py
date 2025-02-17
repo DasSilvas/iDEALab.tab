@@ -36,10 +36,11 @@ from classes import RvtClasses as cls
 from classes import RvtParameterName as parameter
 from pyrevit import revit
 from pyrevit import forms, script
+import rpae
 
 doc = __revit__.ActiveUIDocument.Document
 
-pipes = rvt.get_elements_bycategory(doc, cat.PIPES)
+#pipes = rvt.get_elements_bycategory(doc, cat.PIPES)
 pipe_fittings = rvt.get_elements_bycategory(doc, cat.PIPE_FITTINGS)
 plumbing_fixtures = rvt.get_elements_bycategory(doc, cat.PLUMBING_FIXTURES)
 teste1 = []
@@ -51,11 +52,33 @@ p_fixtures = [PlumbingFixture(doc, p_f) for p_f in plumbing_fixtures]
 p_fittings = [PipeFitting(doc, p_fitting) for p_fitting in pipe_fittings]
 
 fittings_sanitary = PipeFitting.filter_by_system(p_fittings, "Sanitary")
+fixtures_sanitary = PlumbingFixture.filter_by_system(p_fixtures, "Sanitary")
 
-for f in fittings_sanitary:
-    teste1.append(f.system_type)
+caixas = [f for f in fixtures_sanitary if f.type.FamilyName == 'ED&EP FVPS - Caixa' ]
 
-print(teste1)
+refs = []
+
+for x in fittings_sanitary:
+	connset = x.elemento.MEPModel.ConnectorManager.Connectors
+	conn_pipes = []
+	for c in connset:
+		if c.IsConnected:
+			for lc in c.AllRefs:
+				conn_pipes.append(lc.Owner)
+	refs.append(conn_pipes)
+
+t = Transaction(doc, "Pipes")
+t.Start()
+
+for p in pipes:
+	if p.tubo_queda.AsInteger() == 1:
+		caudal = rpae.q_cal(p.caudal_acumulado)
+		diametro_cal = rpae.d_tq(caudal, taxa_ocupacao=0.17)
+		diametro_tq = rpae.d_pvc(diametro_cal, "tq")
+		p.set_diameter(Funk.internal_units(diametro_tq))
+t.Commit()
+
+#print(teste1)
 
 
 
