@@ -1,0 +1,27 @@
+import math
+
+def calculate_wet_perimeter(tube_diameter, liquid_diameter):
+    tube_radius = tube_diameter / 2
+    liquid_height = liquid_diameter
+    central_angle = 2 * math.acos((tube_radius - liquid_height) / tube_radius)
+    wet_perimeter = tube_radius * central_angle
+    return central_angle, wet_perimeter
+
+def calculate_liquid_area(tube_diameter, central_angle):
+    tube_radius = tube_diameter / 2
+    # Area of the segment: (R^2 / 2) * (θ - sin(θ))
+    liquid_area = (tube_radius ** 2 / 2) * (central_angle - math.sin(central_angle))
+    return liquid_area
+
+def calculate_hydraulic_radius(tube_diameter, liquid_diameter):
+    central_angle, wet_perimeter = calculate_wet_perimeter(tube_diameter, liquid_diameter)
+    liquid_area = calculate_liquid_area(tube_diameter, central_angle)
+    hydraulic_radius = liquid_area / wet_perimeter
+    return hydraulic_radius
+
+# Example usage
+tube_diameter = 125  # mm
+liquid_diameter = 85  # mm
+
+hydraulic_radius = calculate_hydraulic_radius(tube_diameter, liquid_diameter)
+print(f"The hydraulic radius is approximately {hydraulic_radius:.2f} mm")

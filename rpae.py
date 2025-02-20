@@ -2,6 +2,7 @@
 """ Ficheiro de formulas de calculo de RPAE
 """
 #Variáveis base (rugosidade, diametros mínimos, etc)
+import math
 
 dmin_ramal = 50
 dmin_tq = 110
@@ -54,8 +55,11 @@ def d_pvc(diametro, item="tq"):
 
     return return_value
 
-def tensao_arrastamento():
-    como_fazer = 120
+
+def tensao_arrastamento(diameter, slope):
+    t = round(9800*((diameter/1000)/4)*(slope/100), 2)
+
+    return t
 
 
 #testing purposes
@@ -74,4 +78,5 @@ if __name__ == "__main__":
     diametro_tq = d_pvc(dia_tq)
     diametro_rni = d_pvc(dia_rni)
 
-    print(caudal_cal, dia_tq, diametro_tq)
+    teste = tensao_arrastamento(105.69,1)
+    print(teste)
