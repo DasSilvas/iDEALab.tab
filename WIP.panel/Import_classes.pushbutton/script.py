@@ -37,544 +37,152 @@ from classes import RvtApi as rvt
 from classes import RvtClasses as cls
 from classes import RvtApiCategory as cat
 
-class Element:
-
-    def __init__(self, doc, elemento):
-
-        self.elemento = elemento
-        self.nome = elemento.Name
-        self.type = doc.GetElement(elemento.GetTypeId())
-        #self.velocidade = round(elemento.LookupParameter("Velocity").AsDouble()/3.28084, 2)
-        self.q_acu = round(elemento.LookupParameter("Flow").AsDouble()*28.317,2)
-        self.comprimento = round(elemento.LookupParameter("Length").AsDouble()/3.281,2)
-        self.fu = elemento.LookupParameter("Fixture Units").AsDouble()
-        self.troco = elemento.LookupParameter("Troço").AsString()
-        self.zona = elemento.LookupParameter("Zona").AsString()
-        self.dispositivos = 1
-        self.lvl_name = self.get_lvl_name()
-        self.lvl_elevation = self.get_lvl_elevation()
-
-   
-    def get_lvl_name(self):
-
-        lvl = doc.GetElement(self.elemento.LookupParameter("Reference Level").AsElementId())
-        lvl_name = lvl.Name 
-
-        return lvl_name
-    
-    def get_lvl_elevation(self):
-
-        lvl = doc.GetElement(self.elemento.LookupParameter("Reference Level").AsElementId())
-        lvl_elevation = round(lvl.Elevation/3.281, 2)
-
-        return lvl_elevation
-
-    def set_dispositivos(self, valor):
-        v = self.elemento.LookupParameter("Nr Dispositivos").Set(valor)
-        return v
-
-    @classmethod    
-    def processar_trocos(cls, lista_trocos):
-        """
-        Processa uma lista de troços removendo duplicados e calculando o número de dispositivos.
-        
-        Regras:
-        1. Remover duplicados
-        2. Por defeito, troços com prefixo numérico têm 1 dispositivo
-        3. Quando vários sufixos iguais existem em troços diferentes, 
-        o troço com prefixo igual ao sufixo deve somar os números de dispositivos
-        4. Considera todos os valores da lista, mesmo os que aparecem depois
-        """
-        
-        # Remover duplicados mantendo a ordem
-        trocos_unicos = []
-        for item in lista_trocos:
-            if item.troco not in trocos_unicos:
-                trocos_unicos.append(item.troco)
-        
-        # Separar prefixos e sufixos
-        trocos_info = []
-        for troco in trocos_unicos:
-            partes = troco.split('-')
-            if len(partes) == 2:
-                prefixo, sufixo = partes
-                trocos_info.append({
-                    'original': troco,
-                    'prefixo': prefixo,
-                    'sufixo': sufixo,
-                    'dispositivos': 1 if prefixo.isdigit() else 0
-                })
-        
-        # Criar mapeamentos para análise completa
-        # Mapa de sufixos para troços que terminam nesse sufixo
-        sufixos_para_trocos = {}
-        # Mapa de prefixos para troços que começam com esse prefixo
-        prefixos_para_trocos = {}
-        
-        for info in trocos_info:
-            sufixo = info['sufixo']
-            prefixo = info['prefixo']
-            
-            if sufixo not in sufixos_para_trocos:
-                sufixos_para_trocos[sufixo] = []
-            sufixos_para_trocos[sufixo].append(info)
-            
-            if prefixo not in prefixos_para_trocos:
-                prefixos_para_trocos[prefixo] = []
-            prefixos_para_trocos[prefixo].append(info)
-        
-        # Fazer múltiplas passagens até não haver mais mudanças
-        # Isso garante que consideramos todos os valores, mesmo os que aparecem depois
-        mudancas = True
-        iteracao = 0
-        max_iteracoes = len(trocos_info) + 1  # Evitar loop infinito
-        
-        while mudancas and iteracao < max_iteracoes:
-            mudancas = False
-            iteracao += 1
-            
-            for info in trocos_info:
-                prefixo = info['prefixo']
-                dispositivos_anteriores = info['dispositivos']
-                
-                # Se este prefixo aparece como sufixo noutros troços
-                if prefixo in sufixos_para_trocos:
-                    # Somar dispositivos dos troços que terminam neste prefixo
-                    dispositivos_a_somar = 0
-                    trocos_contribuintes = []
-                    
-                    for troco_com_sufixo in sufixos_para_trocos[prefixo]:
-                        # Só contar troços que têm dispositivos (evitar loops infinitos)
-                        if troco_com_sufixo['dispositivos'] > 0:
-                            dispositivos_a_somar += troco_com_sufixo['dispositivos']
-                            trocos_contribuintes.append(troco_com_sufixo['original'])
-                    
-                    # Atualizar o número de dispositivos se houver contribuições
-                    if dispositivos_a_somar > 0 and not info['prefixo'].isdigit():
-                        novo_valor = dispositivos_a_somar
-                        if info['dispositivos'] != novo_valor:
-                            info['dispositivos'] = novo_valor
-                            mudancas = True
-    
-        # 2. Criar mapa final troco -> dispositivos
-        troco_para_dispositivos = {info['original']: info['dispositivos'] for info in trocos_info}
-            
-        # 3. Atualizar todos os elementos originais (mesmo duplicados)
-        for elem in lista_trocos:
-            if elem.troco in troco_para_dispositivos:
-                elem.dispositivos = troco_para_dispositivos[elem.troco]
-            else:
-                elem.dispositivos = 1  # fallback
-        
-        return lista_trocos
-    
-        #return trocos_info
- 
-    @classmethod
-    def aninhar_por_zona_troco(cls, lista_elementos):
-        """
-        Retorna lista aninhada: [[elementos_da_zona1], [elementos_da_zona2], ...],
-        cada sublista ordenada por troco.
-        """
-        from collections import defaultdict
-
-        zonas = defaultdict(list)
-        for e in lista_elementos:
-            zonas[e.zona].append(e)
-
-        zonas_ordenadas = sorted(zonas.keys())
-
-        lista_aninhada = []
-        for zona in zonas_ordenadas:
-            sublista = sorted(zonas[zona], key=lambda e: e.troco)
-            lista_aninhada.append(sublista)
-
-        return lista_aninhada
-    
-    @classmethod
-    def flatten_lista_aninhada(cls, lista_aninhada):
-        """
-        Recebe lista aninhada e retorna uma lista plana,
-        mantendo a ordem de zonas e trocos.
-        """
-        return [e for sublista in lista_aninhada for e in sublista]
-
-    def q_calculo(self, valor):
-        if valor <= 3.5:
-            self.q_cal = round(0.5469*valor**0.5137, 2)
-        elif 3.5 < valor <=25:
-            self.q_cal = round(0.5226*valor**0.5364, 2)
-        elif 25 < valor <= 500:
-            self.q_cal = round(0.2525*valor**0.7587, 2)
-        else:
-            self.q_cal = "error"
-        return self.q_cal 
-
-    def d_cal(self, valor):
-        v = 2
-
-        d = round(math.sqrt((1.273*(valor/1000))/v)*1000, 2)
-
-        return d
-
-    def d_nominal(self, valor):
-        if valor < 12:
-            d = 16
-        elif valor < 16:
-            d = 20
-        elif valor < 20:
-            d = 26
-        elif valor < 26:
-            d = 32
-        elif valor < 32:
-            d = 40
-        elif valor < 42:
-            d = 50
-        elif valor < 54:
-            d = 63
-        else:
-            d = 75
-        
-        return d
-
-    def d_interno(self, valor):
-        if valor == 16:
-            d_int = 12
-        elif valor == 20:
-            d_int = 16
-        elif valor == 26:
-            d_int = 20
-        elif valor == 32:
-            d_int = 26
-        elif valor == 40:
-            d_int = 32
-        elif valor == 50:
-            d_int = 42
-        else:
-            d_int = 10000
-
-        return float(d_int)
-
-    def velocidade(self, caudal_cal, d_interno):
-        vel = round(((caudal_cal*4000)/(math.pi*(d_interno**2))), 2)
-        return vel
-    
-    def perda_carga(self, v, d, b="plastico"):
-        if b == "aco":
-            b = 0.000152
-        else:
-            b = 0.000134
-
-        d_meters = d/1000
-
-        j = round(4*b*((v)**(1.75))*((d_meters)**(-1.25)), 6)
-
-        return j
-
-def consolidar_output(output_list):
+def eh_no(fitting_pipes):
     """
-    Remove duplicados do output mantendo informações específicas e somando J e Ltroço.
-    
-    Mantém:
-    - Zona, Troço, Nr Dispositivos, Qacumulado, Qcálculo, Dcálculo, 
-      Dnominal, Dinterno, v (do primeiro encontrado)
-    
-    Soma:
-    - J (m/m) -> mantém o valor (assumindo que é igual para o mesmo troço)
-    - Ltroço (m) -> soma todos os comprimentos do mesmo troço
-    - JxL (m.c.a) -> recalcula baseado no Ltroço somado
-    
-    Args:
-        output_list: Lista de dicionários com os dados calculados
-        
-    Returns:
-        Lista consolidada sem duplicados
+    fitting_pipes: lista de pipes ligados a um fitting
+    retorna True se o fitting for nó, False caso contrário
     """
-    from collections import OrderedDict
-    
-    # Usar OrderedDict para manter a ordem e agrupar por troço
-    trocos_consolidados = OrderedDict()
-    
-    for item in output_list:
-        troco = item["Troço"]
-        
-        if troco not in trocos_consolidados:
-            # Primeira ocorrência - copiar todos os dados
-            trocos_consolidados[troco] = item.copy()
-        else:
-            # Duplicado encontrado - somar apenas Ltroço
-            trocos_consolidados[troco]["Ltroço (m)"] += item["Ltroço (m)"]
-            #trocos_consolidados[troco]["J (m/m)"] += item["J (m/m)"]
-    
-    # Recalcular JxL baseado no novo Ltroço somado
-    output_consolidado = []
-    for troco, dados in trocos_consolidados.items():
-        # Recalcular JxL com o comprimento total
-        j_valor = dados["J (m/m)"]
-        l_total = dados["Ltroço (m)"]
-        dados["JxL (m.c.a)"] = round(1.5 * j_valor * l_total, 2)
-        
-        output_consolidado.append(dados)
-    
-    return output_consolidado
+    sufixos = []
+    prefixos = []
 
-def calcular_jacumulado(output_list):
+    for pipe in fitting_pipes:
+        troco = pipe.get_Parameter("Troço").AsString()  # Acessar parâmetro troço
+        if '-' in troco:
+            prefixo, sufixo = troco.strip("[]").split('-')
+            prefixos.append(prefixo)
+            sufixos.append(sufixo)
+
+    sufixos_unicos = set(sufixos)
+    
+    # Caso 1: só existe um sufixo → não é nó
+    if len(sufixos_unicos) == 1:
+        return False
+
+    # Caso 2: verificar se algum sufixo aparece como prefixo → é nó
+    for s in sufixos_unicos:
+        if s in prefixos:
+            return True
+
+    # Caso 3: múltiplos sufixos, mas nenhum aparece como prefixo → não é nó
+    return False
+
+def encontrar_pipe(elemento):
     """
-    Calcula JxL acumulado propagando do jusante para o montante.
-    
-    Exemplo: B-C alimenta A-B (porque B é o nó comum).
+    Recebe um elemento (fitting ou pipe)
+    Retorna o pipe final ligado, pulando adaptadores/fittings intermediários
     """
-    
-    # Copiar lista
-    output_processado = []
-    for item in output_list:
-        novo_item = item.copy()
-        novo_item['Jacumulado (m.c.a)'] = novo_item['JxL (m.c.a)']
-        output_processado.append(novo_item)
+    if elemento.Category.Name == "Pipes":  # Ou verifica outro critério de pipe
+        return elemento
 
-    mudancas = True
-    iteracao = 0
-    max_iteracoes = len(output_processado) + 2
+    # Se não for pipe, tenta seguir os connectors
+    if hasattr(elemento, "MEPModel"):
+        for connector in elemento.MEPModel.ConnectorManager.Connectors:
+            if connector.IsConnected:
+                for ref in connector.AllRefs:
+                    owner = ref.Owner
+                    if owner.Id != elemento.Id:  # Evitar loop infinito
+                        pipe_final = encontrar_pipe(owner)
+                        if pipe_final:
+                            return pipe_final
+    return None
 
-    while mudancas and iteracao < max_iteracoes:
-        mudancas = False
-        iteracao += 1
-
-        for item in output_processado:
-            troco = item['Troço']
-            if '-' not in troco:
-                continue
-            
-            prefixo, sufixo = troco.split('-', 1)
-
-            # procurar troços que começam neste sufixo (jusante)
-            for outro_item in output_processado:
-                outro_troco = outro_item['Troço']
-                if '-' not in outro_troco or outro_troco == troco:
-                    continue
-
-                outro_prefixo, outro_sufixo = outro_troco.split('-', 1)
-
-                # se este sufixo (do montante) == prefixo do jusante
-                if sufixo == outro_prefixo:
-                    acumulado_novo = round(item['JxL (m.c.a)'] + outro_item['Jacumulado (m.c.a)'], 2)
-                    if abs(item['Jacumulado (m.c.a)'] - acumulado_novo) > 0.0001:
-                        item['Jacumulado (m.c.a)'] = acumulado_novo
-                        mudancas = True
-
-    return output_processado
 
 doc = __revit__.ActiveUIDocument.Document
 
 piping_system = rvt.get_element_byclass(doc, cls.PIPING_SYSTEM, element_type=False)
 
-levels = rvt.get_element_byclass(doc, cls.LEVEL)
+elements = rvt.get_elements_bycategory(doc, cat.PIPE_FITTINGS)
 
-elements = rvt.get_elements_bycategory(doc, cat.PIPES)
+fitting_redes =[]
+fittings_no = []  # Lista final de fittings que são nó
 
+for ele in elements:
+    nome_sistema = ele.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString()
+    if nome_sistema.startswith(("AF", "AQ")):
+        fitting_redes.append(ele)
+
+conn_pipes = []
+
+# Iterar fittings filtrados
+for fitting in fitting_redes:
+    conn_pipes = []
+
+    for connector in fitting.MEPModel.ConnectorManager.Connectors:
+        if connector.IsConnected:
+            for ref in connector.AllRefs:
+                pipe = encontrar_pipe(ref.Owner)
+                if pipe:
+                    conn_pipes.append(pipe)
+
+    # Aplicar lógica do troço
+    sufixos = []
+    prefixos = []
+
+    for pipe in conn_pipes:
+        troco = pipe.LookupParameter("Troço").AsString()
+        if '-' in troco:
+            prefixo, sufixo = troco.strip("[]").split('-')
+            prefixos.append(prefixo)
+            sufixos.append(sufixo)
+
+    sufixos_unicos = set(sufixos)
+
+    if len(sufixos_unicos) > 1 and any(s in prefixos for s in sufixos_unicos):
+        fittings_no.append(fitting.Id.Value)  # Guardamos o próprio fitting
+
+print(fittings_no)
+
+"""
+refs = []
+
+for x in fitting_redes:
+    connset = x.MEPModel.ConnectorManager.Connectors
+    conn_pipes = []
+    for c in connset:
+        if c.IsConnected:
+            for lc in c.AllRefs:
+                conn_pipes.append(lc.Owner.Name)
+            refs.append(conn_pipes)
+
+print(refs)
+
+    sufixos = []
+    prefixos = []
+
+    for pipe in conn_pipes:
+        troco = pipe.LookupParameter("Troço").AsString()
+        if '-' in troco:
+            prefixo, sufixo = troco.strip("[]").split('-')
+            prefixos.append(prefixo)
+            sufixos.append(sufixo)
+
+        sufixos_unicos = set(sufixos)
+
+        if len(sufixos_unicos) > 1 and any(s in prefixos for s in sufixos_unicos):
+            fittings_no.append(x)  # Guardamos o próprio fitting
+
+print(fittings_no)
+
+"""
+"""
 e = elements[0]
 
 parameters = e.GetOrderedParameters()
 t = []
-
-pressao_rede = 35
 
 # Criar dicionário para guardar elementos por rede
 redes = {}
 
 for ele in elements:
     nome_sistema = ele.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString()
-    if nome_sistema.startswith("AF"):
+    if nome_sistema.startswith(("AF", "AQ")):
         if nome_sistema not in redes:
             redes[nome_sistema] = []
-        redes[nome_sistema].append(Element(doc, ele))
+        redes[nome_sistema].append(ele)
 
 
-for l in levels:
-    if l.Name == "Soleira":
-        lvl_abastecimento = round(l.Elevation/3.281)
-
-ordenados1 = Element.aninhar_por_zona_troco(t)
-ordenados = Element.flatten_lista_aninhada(ordenados1)
-
-contagem = Element.processar_trocos(ordenados)
-
-output = []
-level = []
-caminho = r"C:\Users\jf\Desktop\Nova pasta\meu_excel.xlsx"
-
-t = Transaction(doc, "Relatorio Aguas")
+t = Transaction(doc, "Nos")
 t.Start()
 
-output_por_rede = {}  # guarda resultados finais por rede
-for nome_rede, elementos_rede in redes.items():
-    
-    ordenados1 = Element.aninhar_por_zona_troco(elementos_rede)
-    ordenados = Element.flatten_lista_aninhada(ordenados1)
-    contagem = Element.processar_trocos(ordenados)
-
-    output = []
-    for c in contagem:
-        c.set_dispositivos(c.dispositivos)
-        q_cal = c.q_calculo(c.q_acu)
-        d_cal = c.d_cal(c.q_cal)
-        d_nom = c.d_nominal(d_cal)
-        d_int = c.d_interno(d_nom)
-        velocidade = c.velocidade(c.q_cal, d_int)
-        perda_carga = c.perda_carga(velocidade, d_int)
-        j_mca = round(1.5 * perda_carga * c.comprimento, 4)
-
-        output.append({
-            "Elemento": c,
-            "Piso": c.lvl_name,
-            "Zona": c.zona,
-            "Troço": c.troco,
-            "Nr Dispositivos": c.dispositivos,
-            "Qacumulado (l/s)": c.q_acu,
-            "Qcálculo (l/s)": c.q_cal,
-            "Dcálculo (mm)": d_cal,
-            "Dnominal (mm)": d_nom,
-            "Dinterno (mm)": d_int,
-            "v (m/s)": velocidade,
-            "J (m/m)": perda_carga,
-            "Ltroço (m)": c.comprimento,
-            "JxL (m.c.a)": j_mca,
-            "Diferença de cota (m)": 2 + (c.lvl_elevation - lvl_abastecimento)
-        })
-
-    x = consolidar_output(output)
-    y = calcular_jacumulado(x)
-
-    # Acrescentar colunas adicionais
-    for r in y:
-        r["Pressão de abastecimento (m.c.a)"] = pressao_rede
-        r["Pressão verificada (m.c.a)"] = r["Pressão de abastecimento (m.c.a)"] - (r["Jacumulado (m.c.a)"] + r["Diferença de cota (m)"])
-        
-    output_por_rede[nome_rede] = y
-
-trocos_contador_por_rede = {}
-soma_qacu = 0
-modelo_elem = None  # referência ao elemento para usar as funções da classe
-
-for nome_rede, dados in output_por_rede.items():
-    troco_contador = next(
-        (row for row in dados if str(row.get("Troço", "")).endswith("Contador")),
-        None
-    )
-    
-    if troco_contador:
-        elem = troco_contador["Elemento"]   # objeto Element original
-        soma_qacu += elem.q_acu
-        trocos_contador_por_rede[nome_rede] = troco_contador
-        
-        # guarda o primeiro modelo_elem encontrado
-        if modelo_elem is None:
-            modelo_elem = elem
-
-# Agora podemos usar modelo_elem para calcular o troço equivalente baseado na soma
-if modelo_elem:
-
-    q_cal_total = modelo_elem.q_calculo(soma_qacu)
-    d_cal_total = modelo_elem.d_cal(q_cal_total)
-    d_nom_total = modelo_elem.d_nominal(d_cal_total)
-    d_int_total = modelo_elem.d_interno(d_nom_total)
-    velocidade_total = modelo_elem.velocidade(q_cal_total, d_int_total)
-    perdar_carga_total = modelo_elem.perda_carga(velocidade_total, d_int_total)
-
-print(soma_qacu)
-    # Criar workbook e worksheet
-workbook = xlsxwriter.Workbook(caminho)
-
-for nome_rede, dados in output_por_rede.items():
-    worksheet = workbook.add_worksheet(nome_rede[:31])  # limite de 31 chars para aba
-
-    # Cabeçalhos
-    keys = [
-        "Piso",
-        "Zona",
-        "Troço",
-        "Nr Dispositivos",
-        "Qacumulado (l/s)",
-        "Qcálculo (l/s)",
-        "Dcálculo (mm)",
-        "Dnominal (mm)",
-        "Dinterno (mm)",
-        "v (m/s)",
-        "J (m/m)",
-        "Ltroço (m)",
-        "JxL (m.c.a)",
-        "Jacumulado (m.c.a)",
-        "Pressão de abastecimento (m.c.a)",
-        "Diferença de cota (m)",
-        "Pressão verificada (m.c.a)"
-    ]
-
-    # Cabeçalhos e max_lens
-    max_lens = []
-    for col, key in enumerate(keys):
-        worksheet.write(0, col, key)
-        max_lens.append(len(str(key)))
-
-    # Dados
-    for row_idx, item in enumerate(dados, start=1):
-        for col_idx, key in enumerate(keys):
-            valor = item.get(key, "")
-            worksheet.write(row_idx, col_idx, valor)
-            if valor is not None:
-                max_lens[col_idx] = max(max_lens[col_idx], len(str(valor)))
-
-    # Ajustar largura das colunas
-    for col, width in enumerate(max_lens):
-        worksheet.set_column(col, col, width + 2)
-# --- aba do troço equivalente ---
-worksheet_eq = workbook.add_worksheet("Troço Alimentação")
-
-# Cabeçalhos específicos desta aba
-headers_eq = [
-    "Qacumulado Total (l/s)",
-    "Qcálculo Total",
-    "Dcálculo Total",
-    "Dnominal Total",
-    "Dinterno Total",
-    "Velocidade Total (m/s)"
-]
-
-#for col, key in enumerate(headers_eq):
-#    worksheet_eq.write(0, col, key)
-
-# Valores calculados usando modelo_elem e soma_qacu
-values_eq = [
-    soma_qacu,
-    q_cal_total,
-    d_cal_total,
-    d_nom_total,
-    d_int_total,
-    velocidade_total
-]
-
-# Escrever cabeçalhos e inicializar max_lens
-max_lens_eq = []
-for col, key in enumerate(headers_eq):
-    worksheet_eq.write(0, col, key)
-    max_lens_eq.append(len(str(key)))
-
-# Escrever os valores calculados
-values_eq = [soma_qacu, q_cal_total, d_cal_total, d_nom_total, d_int_total, velocidade_total]
-
-for col, val in enumerate(values_eq):
-    worksheet_eq.write(1, col, val)
-    max_lens_eq[col] = max(max_lens_eq[col], len(str(val)))
-
-# Ajustar a largura das colunas
-for col, width in enumerate(max_lens_eq):
-    worksheet_eq.set_column(col, col, width + 2)
-
-#for col, val in enumerate(values_eq):
-#    worksheet_eq.write(1, col, val)
-
-# Fechar workbook
-workbook.close()
-print("Excel exportado com abas das redes e aba do troço equivalente.")
-workbook.close()
-
 t.Commit()
+"""
