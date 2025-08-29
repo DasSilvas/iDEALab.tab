@@ -1,249 +1,580 @@
 # -*- coding: utf-8 -*-
+"""WIP vistas"""
+# Load the Python Standard and DesignScript Libraries
+import clr
+clr.AddReference('ProtoGeometry')
+from Autodesk.DesignScript import Geometry as geom
+clr.AddReference("RevitNodes")
+import Revit
+from Revit import Elements
+clr.ImportExtensions(Revit.Elements)
+clr.ImportExtensions(Revit.GeometryConversion)
+clr.AddReference("RevitAPI")
+from Autodesk.Revit.DB import *
+from Autodesk.Revit.DB.Structure import *
+
+clr.AddReference("RevitServices")
+from RevitServices.Persistence import DocumentManager
+from RevitServices.Transactions import TransactionManager
+
+clr.AddReference('RevitAPIUI')
+from Autodesk.Revit.UI import *
+
+from collections import defaultdict
 
 import os.path
 import sys
+import math
+import xlrd
+import xlsxwriter
+
 # get the absolute path to the grandparent directory
 grandparent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 # add the grandparent directory to the system path
 sys.path.insert(0, grandparent_dir)
 
-import clr
-clr.AddReference("System.Windows.Forms")
-clr.AddReference("System")
-
-"""WIP vistas"""
-# Load the Python Standard and DesignScript Libraries
-import Autodesk
-from Autodesk.Revit.DB import *
-from Autodesk.Revit.DB.Structure import *
-from Autodesk.Revit.UI import *
-from pyrevit.forms import WPFWindow
+from classes import RvtApi as rvt
+from classes import RvtClasses as cls
 from classes import RvtApiCategory as cat
 
-from System.Windows.Controls import Orientation, CheckBox, DockPanel, Button,ComboBoxItem, TextBox, ListBoxItem, StackPanel, TextBlock, WrapPanel, Border, ScrollViewer
-import System.Windows.Input as Input
-from System.Windows import Window
-from System.Windows.Forms import FolderBrowserDialog, DialogResult, OpenFileDialog
+class Element:
 
-from System.Collections.Generic import List
-from System.Windows             import Visibility
-import wpf
+    def __init__(self, doc, elemento):
+
+        self.elemento = elemento
+        self.nome = elemento.Name
+        self.type = doc.GetElement(elemento.GetTypeId())
+        #self.velocidade = round(elemento.LookupParameter("Velocity").AsDouble()/3.28084, 2)
+        self.q_acu = round(elemento.LookupParameter("Flow").AsDouble()*28.317,2)
+        self.comprimento = round(elemento.LookupParameter("Length").AsDouble()/3.281,2)
+        self.fu = elemento.LookupParameter("Fixture Units").AsDouble()
+        self.troco = elemento.LookupParameter("Troço").AsString()
+        self.zona = elemento.LookupParameter("Zona").AsString()
+        self.dispositivos = 1
+        self.lvl_name = self.get_lvl_name()
+        self.lvl_elevation = self.get_lvl_elevation()
+
+   
+    def get_lvl_name(self):
+
+        lvl = doc.GetElement(self.elemento.LookupParameter("Reference Level").AsElementId())
+        lvl_name = lvl.Name 
+
+        return lvl_name
+    
+    def get_lvl_elevation(self):
+
+        lvl = doc.GetElement(self.elemento.LookupParameter("Reference Level").AsElementId())
+        lvl_elevation = round(lvl.Elevation/3.281, 2)
+
+        return lvl_elevation
+
+    def set_dispositivos(self, valor):
+        v = self.elemento.LookupParameter("Nr Dispositivos").Set(valor)
+        return v
+
+    @classmethod    
+    def processar_trocos(cls, lista_trocos):
+        """
+        Processa uma lista de troços removendo duplicados e calculando o número de dispositivos.
+        
+        Regras:
+        1. Remover duplicados
+        2. Por defeito, troços com prefixo numérico têm 1 dispositivo
+        3. Quando vários sufixos iguais existem em troços diferentes, 
+        o troço com prefixo igual ao sufixo deve somar os números de dispositivos
+        4. Considera todos os valores da lista, mesmo os que aparecem depois
+        """
+        
+        # Remover duplicados mantendo a ordem
+        trocos_unicos = []
+        for item in lista_trocos:
+            if item.troco not in trocos_unicos:
+                trocos_unicos.append(item.troco)
+        
+        # Separar prefixos e sufixos
+        trocos_info = []
+        for troco in trocos_unicos:
+            partes = troco.split('-')
+            if len(partes) == 2:
+                prefixo, sufixo = partes
+                trocos_info.append({
+                    'original': troco,
+                    'prefixo': prefixo,
+                    'sufixo': sufixo,
+                    'dispositivos': 1 if prefixo.isdigit() else 0
+                })
+        
+        # Criar mapeamentos para análise completa
+        # Mapa de sufixos para troços que terminam nesse sufixo
+        sufixos_para_trocos = {}
+        # Mapa de prefixos para troços que começam com esse prefixo
+        prefixos_para_trocos = {}
+        
+        for info in trocos_info:
+            sufixo = info['sufixo']
+            prefixo = info['prefixo']
+            
+            if sufixo not in sufixos_para_trocos:
+                sufixos_para_trocos[sufixo] = []
+            sufixos_para_trocos[sufixo].append(info)
+            
+            if prefixo not in prefixos_para_trocos:
+                prefixos_para_trocos[prefixo] = []
+            prefixos_para_trocos[prefixo].append(info)
+        
+        # Fazer múltiplas passagens até não haver mais mudanças
+        # Isso garante que consideramos todos os valores, mesmo os que aparecem depois
+        mudancas = True
+        iteracao = 0
+        max_iteracoes = len(trocos_info) + 1  # Evitar loop infinito
+        
+        while mudancas and iteracao < max_iteracoes:
+            mudancas = False
+            iteracao += 1
+            
+            for info in trocos_info:
+                prefixo = info['prefixo']
+                dispositivos_anteriores = info['dispositivos']
+                
+                # Se este prefixo aparece como sufixo noutros troços
+                if prefixo in sufixos_para_trocos:
+                    # Somar dispositivos dos troços que terminam neste prefixo
+                    dispositivos_a_somar = 0
+                    trocos_contribuintes = []
+                    
+                    for troco_com_sufixo in sufixos_para_trocos[prefixo]:
+                        # Só contar troços que têm dispositivos (evitar loops infinitos)
+                        if troco_com_sufixo['dispositivos'] > 0:
+                            dispositivos_a_somar += troco_com_sufixo['dispositivos']
+                            trocos_contribuintes.append(troco_com_sufixo['original'])
+                    
+                    # Atualizar o número de dispositivos se houver contribuições
+                    if dispositivos_a_somar > 0 and not info['prefixo'].isdigit():
+                        novo_valor = dispositivos_a_somar
+                        if info['dispositivos'] != novo_valor:
+                            info['dispositivos'] = novo_valor
+                            mudancas = True
+    
+        # 2. Criar mapa final troco -> dispositivos
+        troco_para_dispositivos = {info['original']: info['dispositivos'] for info in trocos_info}
+            
+        # 3. Atualizar todos os elementos originais (mesmo duplicados)
+        for elem in lista_trocos:
+            if elem.troco in troco_para_dispositivos:
+                elem.dispositivos = troco_para_dispositivos[elem.troco]
+            else:
+                elem.dispositivos = 1  # fallback
+        
+        return lista_trocos
+    
+        #return trocos_info
+ 
+    @classmethod
+    def aninhar_por_zona_troco(cls, lista_elementos):
+        """
+        Retorna lista aninhada: [[elementos_da_zona1], [elementos_da_zona2], ...],
+        cada sublista ordenada por troco.
+        """
+        from collections import defaultdict
+
+        zonas = defaultdict(list)
+        for e in lista_elementos:
+            zonas[e.zona].append(e)
+
+        zonas_ordenadas = sorted(zonas.keys())
+
+        lista_aninhada = []
+        for zona in zonas_ordenadas:
+            sublista = sorted(zonas[zona], key=lambda e: e.troco)
+            lista_aninhada.append(sublista)
+
+        return lista_aninhada
+    
+    @classmethod
+    def flatten_lista_aninhada(cls, lista_aninhada):
+        """
+        Recebe lista aninhada e retorna uma lista plana,
+        mantendo a ordem de zonas e trocos.
+        """
+        return [e for sublista in lista_aninhada for e in sublista]
+
+    def q_calculo(self, valor):
+        if valor <= 3.5:
+            self.q_cal = round(0.5469*valor**0.5137, 2)
+        elif 3.5 < valor <=25:
+            self.q_cal = round(0.5226*valor**0.5364, 2)
+        elif 25 < valor <= 500:
+            self.q_cal = round(0.2525*valor**0.7587, 2)
+        else:
+            self.q_cal = "error"
+        return self.q_cal 
+
+    def d_cal(self, valor):
+        v = 2
+
+        d = round(math.sqrt((1.273*(valor/1000))/v)*1000, 2)
+
+        return d
+
+    def d_nominal(self, valor):
+        if valor < 12:
+            d = 16
+        elif valor < 16:
+            d = 20
+        elif valor < 20:
+            d = 26
+        elif valor < 26:
+            d = 32
+        elif valor < 32:
+            d = 40
+        elif valor < 42:
+            d = 50
+        elif valor < 54:
+            d = 63
+        else:
+            d = 75
+        
+        return d
+
+    def d_interno(self, valor):
+        if valor == 16:
+            d_int = 12
+        elif valor == 20:
+            d_int = 16
+        elif valor == 26:
+            d_int = 20
+        elif valor == 32:
+            d_int = 26
+        elif valor == 40:
+            d_int = 32
+        elif valor == 50:
+            d_int = 42
+        else:
+            d_int = 10000
+
+        return float(d_int)
+
+    def velocidade(self, caudal_cal, d_interno):
+        vel = round(((caudal_cal*4000)/(math.pi*(d_interno**2))), 2)
+        return vel
+    
+    def perda_carga(self, v, d, b="plastico"):
+        if b == "aco":
+            b = 0.000152
+        else:
+            b = 0.000134
+
+        d_meters = d/1000
+
+        j = round(4*b*((v)**(1.75))*((d_meters)**(-1.25)), 6)
+
+        return j
+
+def consolidar_output(output_list):
+    """
+    Remove duplicados do output mantendo informações específicas e somando J e Ltroço.
+    
+    Mantém:
+    - Zona, Troço, Nr Dispositivos, Qacumulado, Qcálculo, Dcálculo, 
+      Dnominal, Dinterno, v (do primeiro encontrado)
+    
+    Soma:
+    - J (m/m) -> mantém o valor (assumindo que é igual para o mesmo troço)
+    - Ltroço (m) -> soma todos os comprimentos do mesmo troço
+    - JxL (m.c.a) -> recalcula baseado no Ltroço somado
+    
+    Args:
+        output_list: Lista de dicionários com os dados calculados
+        
+    Returns:
+        Lista consolidada sem duplicados
+    """
+    from collections import OrderedDict
+    
+    # Usar OrderedDict para manter a ordem e agrupar por troço
+    trocos_consolidados = OrderedDict()
+    
+    for item in output_list:
+        troco = item["Troço"]
+        
+        if troco not in trocos_consolidados:
+            # Primeira ocorrência - copiar todos os dados
+            trocos_consolidados[troco] = item.copy()
+        else:
+            # Duplicado encontrado - somar apenas Ltroço
+            trocos_consolidados[troco]["Ltroço (m)"] += item["Ltroço (m)"]
+            #trocos_consolidados[troco]["J (m/m)"] += item["J (m/m)"]
+    
+    # Recalcular JxL baseado no novo Ltroço somado
+    output_consolidado = []
+    for troco, dados in trocos_consolidados.items():
+        # Recalcular JxL com o comprimento total
+        j_valor = dados["J (m/m)"]
+        l_total = dados["Ltroço (m)"]
+        dados["JxL (m.c.a)"] = round(1.5 * j_valor * l_total, 2)
+        
+        output_consolidado.append(dados)
+    
+    return output_consolidado
+
+def calcular_jacumulado(output_list):
+    """
+    Calcula JxL acumulado propagando do jusante para o montante.
+    
+    Exemplo: B-C alimenta A-B (porque B é o nó comum).
+    """
+    
+    # Copiar lista
+    output_processado = []
+    for item in output_list:
+        novo_item = item.copy()
+        novo_item['Jacumulado (m.c.a)'] = novo_item['JxL (m.c.a)']
+        output_processado.append(novo_item)
+
+    mudancas = True
+    iteracao = 0
+    max_iteracoes = len(output_processado) + 2
+
+    while mudancas and iteracao < max_iteracoes:
+        mudancas = False
+        iteracao += 1
+
+        for item in output_processado:
+            troco = item['Troço']
+            if '-' not in troco:
+                continue
+            
+            prefixo, sufixo = troco.split('-', 1)
+
+            # procurar troços que começam neste sufixo (jusante)
+            for outro_item in output_processado:
+                outro_troco = outro_item['Troço']
+                if '-' not in outro_troco or outro_troco == troco:
+                    continue
+
+                outro_prefixo, outro_sufixo = outro_troco.split('-', 1)
+
+                # se este sufixo (do montante) == prefixo do jusante
+                if sufixo == outro_prefixo:
+                    acumulado_novo = round(item['JxL (m.c.a)'] + outro_item['Jacumulado (m.c.a)'], 2)
+                    if abs(item['Jacumulado (m.c.a)'] - acumulado_novo) > 0.0001:
+                        item['Jacumulado (m.c.a)'] = acumulado_novo
+                        mudancas = True
+
+    return output_processado
 
 doc = __revit__.ActiveUIDocument.Document
-uidoc = __revit__.ActiveUIDocument
-last_selected_index = None 
 
-class ListItem():
-    """Helper Class for displaying selected sheets in my custom GUI."""
-    def __init__(self,  Name='Unnamed', element = None, checked = False):
-        self.Name       = Name
-        self.element    = element
-        self.IsChecked  = checked
+piping_system = rvt.get_element_byclass(doc, cls.PIPING_SYSTEM, element_type=False)
+
+levels = rvt.get_element_byclass(doc, cls.LEVEL)
+
+elements = rvt.get_elements_bycategory(doc, cat.PIPES)
+
+e = elements[0]
+
+parameters = e.GetOrderedParameters()
+t = []
+
+pressao_rede = 35
+
+# Criar dicionário para guardar elementos por rede
+redes = {}
+
+for ele in elements:
+    nome_sistema = ele.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString()
+    if nome_sistema.startswith("AF"):
+        if nome_sistema not in redes:
+            redes[nome_sistema] = []
+        redes[nome_sistema].append(Element(doc, ele))
 
 
-def ProcessParallelLists(_func, *lists):
-	return map( lambda *xs: ProcessParallelLists(_func, *xs) if all(type(x) is list for x in xs) else _func(*xs), *lists )
+for l in levels:
+    if l.Name == "Soleira":
+        lvl_abastecimento = round(l.Elevation/3.281)
 
-class ModalForm(WPFWindow):
-    def __init__(self, xaml_source):
-        self.form = WPFWindow.__init__(self,xaml_source)
-        self.populate_views_listbox()
-        self.populate_combo_box()
-        self.dwg_setup = None
-        self.last_selected_index = None  # Store last selected index for Shift+Click
-        self.ShowDialog()
+ordenados1 = Element.aninhar_por_zona_troco(t)
+ordenados = Element.flatten_lista_aninhada(ordenados1)
 
-    def get_sheets_collector(self):
-         collector = FilteredElementCollector(doc)
-         filtro = ElementCategoryFilter(cat.SHEETS)
-         return collector.WherePasses(filtro).WhereElementIsNotElementType().ToElements()
+contagem = Element.processar_trocos(ordenados)
 
-    def get_sheets(self):
-        return self.get_sheets_collector()
+output = []
+level = []
+caminho = r"C:\Users\jf\Desktop\Nova pasta\meu_excel.xlsx"
+
+t = Transaction(doc, "Relatorio Aguas")
+t.Start()
+
+output_por_rede = {}  # guarda resultados finais por rede
+for nome_rede, elementos_rede in redes.items():
     
-    def get_dwg_opts(self):
-        dwg_settings = FilteredElementCollector(doc).WherePasses(ElementClassFilter(ExportDWGSettings))
-        settings = [ListItem(setting.Name, setting.GetDWGExportOptions()) for setting in dwg_settings]
-        return settings
+    ordenados1 = Element.aninhar_por_zona_troco(elementos_rede)
+    ordenados = Element.flatten_lista_aninhada(ordenados1)
+    contagem = Element.processar_trocos(ordenados)
 
-    def populate_views_listbox(self):
-        """Populate the ListBox with sheets in the project."""
-        # Get Views
-        views = self.get_sheets()
+    output = []
+    for c in contagem:
+        c.set_dispositivos(c.dispositivos)
+        q_cal = c.q_calculo(c.q_acu)
+        d_cal = c.d_cal(c.q_cal)
+        d_nom = c.d_nominal(d_cal)
+        d_int = c.d_interno(d_nom)
+        velocidade = c.velocidade(c.q_cal, d_int)
+        perda_carga = c.perda_carga(velocidade, d_int)
+        j_mca = round(1.5 * perda_carga * c.comprimento, 4)
+
+        output.append({
+            "Elemento": c,
+            "Piso": c.lvl_name,
+            "Zona": c.zona,
+            "Troço": c.troco,
+            "Nr Dispositivos": c.dispositivos,
+            "Qacumulado (l/s)": c.q_acu,
+            "Qcálculo (l/s)": c.q_cal,
+            "Dcálculo (mm)": d_cal,
+            "Dnominal (mm)": d_nom,
+            "Dinterno (mm)": d_int,
+            "v (m/s)": velocidade,
+            "J (m/m)": perda_carga,
+            "Ltroço (m)": c.comprimento,
+            "JxL (m.c.a)": j_mca,
+            "Diferença de cota (m)": 2 + (c.lvl_elevation - lvl_abastecimento)
+        })
+
+    x = consolidar_output(output)
+    y = calcular_jacumulado(x)
+
+    # Acrescentar colunas adicionais
+    for r in y:
+        r["Pressão de abastecimento (m.c.a)"] = pressao_rede
+        r["Pressão verificada (m.c.a)"] = r["Pressão de abastecimento (m.c.a)"] - (r["Jacumulado (m.c.a)"] + r["Diferença de cota (m)"])
         
-        # Create list of view names for binding
-        self.sheet_items =sorted([ListItem('{} - {}'.format(view.SheetNumber, view.Name), view) for view in views], key=lambda item: item.Name)
-        self.UI_CheckboxList.ItemsSource = self.sheet_items 
+    output_por_rede[nome_rede] = y
 
-    def populate_combo_box(self):
-        dwg_options = self.get_dwg_opts()
-        self.UI_dwg_opts.ItemsSource = dwg_options
+trocos_contador_por_rede = {}
+soma_qacu = 0
+modelo_elem = None  # referência ao elemento para usar as funções da classe
 
-    def on_combo_box_selection_changed(self, sender, e):
-        self.dwg_setup = self.UI_dwg_opts.SelectedValue   # Gets the 'Element' value
+for nome_rede, dados in output_por_rede.items():
+    troco_contador = next(
+        (row for row in dados if str(row.get("Troço", "")).endswith("Contador")),
+        None
+    )
     
-    def get_selected_sheets(self):
-        """Retrieve selected sheets."""
-        selected_sheets = []
-        for item in self.sheet_items:
-            if item.IsChecked:
-                selected_sheets.append(item.element)
-        return selected_sheets
-
-    def create_sheet_name(self):
-        sheets_name = []
-        for item in self.sheet_items:
-            if item.IsChecked:
-                sheets_name.append(item.Name)
-        return sheets_name
-
-    def export_dwfx(self,sheets):
-        y = DWFXExportOptions()
-        y.MergedViews = True
-        a=ViewSet()
-        for s in sheets:
-            a.Insert(s)
-        doc.Export(self.save_path, self.dwfx_name,a,y)
+    if troco_contador:
+        elem = troco_contador["Elemento"]   # objeto Element original
+        soma_qacu += elem.q_acu
+        trocos_contador_por_rede[nome_rede] = troco_contador
         
-    def ext_dwg(self, name, sheet):
-        if self.dwg_setup is None:
-            options = DWGExportOptions()
-        else:
-            options = self.dwg_setup
+        # guarda o primeiro modelo_elem encontrado
+        if modelo_elem is None:
+            modelo_elem = elem
 
-        options.MergedViews = True
-        sheets = List[ElementId]()
-        sheets.Add(sheet.Id)
+# Agora podemos usar modelo_elem para calcular o troço equivalente baseado na soma
+if modelo_elem:
 
-        if self.create_dwg_folder:
-            dwg_folder = os.path.join(self.save_path, "DWG")
-            if not os.path.exists(dwg_folder):
-                os.makedirs(dwg_folder)   
-        else:
-            dwg_folder = self.save_path
+    q_cal_total = modelo_elem.q_calculo(soma_qacu)
+    d_cal_total = modelo_elem.d_cal(q_cal_total)
+    d_nom_total = modelo_elem.d_nominal(d_cal_total)
+    d_int_total = modelo_elem.d_interno(d_nom_total)
+    velocidade_total = modelo_elem.velocidade(q_cal_total, d_int_total)
+    perdar_carga_total = modelo_elem.perda_carga(velocidade_total, d_int_total)
 
-        result = doc.Export(dwg_folder, name, sheets, options)
-        return result
-        
-    def export_dwg(self):
-         ProcessParallelLists(self.ext_dwg, self.create_sheet_name(), self.get_selected_sheets())
+print(soma_qacu)
+    # Criar workbook e worksheet
+workbook = xlsxwriter.Workbook(caminho)
 
-    def export_sheets(self, sender, e):
-        tg = TransactionGroup(doc, "Export")
-        tg.Start()
+for nome_rede, dados in output_por_rede.items():
+    worksheet = workbook.add_worksheet(nome_rede[:31])  # limite de 31 chars para aba
 
-        t = Transaction(doc, "Export DWFx")
-        t.Start()
-        if self.checkbox_dwfx:
-            self.export_dwfx(self.get_selected_sheets())
-        t.Commit()    
- 
-        t = Transaction(doc, 'Export DWG')
-        t.Start()
-        if self.checkbox_dwg:
-            self.export_dwg()
-        t.Commit()
+    # Cabeçalhos
+    keys = [
+        "Piso",
+        "Zona",
+        "Troço",
+        "Nr Dispositivos",
+        "Qacumulado (l/s)",
+        "Qcálculo (l/s)",
+        "Dcálculo (mm)",
+        "Dnominal (mm)",
+        "Dinterno (mm)",
+        "v (m/s)",
+        "J (m/m)",
+        "Ltroço (m)",
+        "JxL (m.c.a)",
+        "Jacumulado (m.c.a)",
+        "Pressão de abastecimento (m.c.a)",
+        "Diferença de cota (m)",
+        "Pressão verificada (m.c.a)"
+    ]
 
-        tg.Assimilate()
+    # Cabeçalhos e max_lens
+    max_lens = []
+    for col, key in enumerate(keys):
+        worksheet.write(0, col, key)
+        max_lens.append(len(str(key)))
 
-    def check_all(self, sender,e):
-        # Set IsCheked to True for all items in the ListBox
-        for item in self.UI_CheckboxList.ItemsSource:
-            item.IsChecked = True
-        
-        # Refrest the ListBox to reflect changes
-        self.UI_CheckboxList.ItemsSource = None
-        self.UI_CheckboxList.ItemsSource = self.sheet_items
+    # Dados
+    for row_idx, item in enumerate(dados, start=1):
+        for col_idx, key in enumerate(keys):
+            valor = item.get(key, "")
+            worksheet.write(row_idx, col_idx, valor)
+            if valor is not None:
+                max_lens[col_idx] = max(max_lens[col_idx], len(str(valor)))
 
-    def check_none(self, sender,e):
-        # Set IsCheked to False for all items in the ListBox
-        for item in self.UI_CheckboxList.ItemsSource:
-            item.IsChecked = False
-        
-        # Refrest the ListBox to reflect changes
-        self.UI_CheckboxList.ItemsSource = None
-        self.UI_CheckboxList.ItemsSource = self.sheet_items
+    # Ajustar largura das colunas
+    for col, width in enumerate(max_lens):
+        worksheet.set_column(col, col, width + 2)
+# --- aba do troço equivalente ---
+worksheet_eq = workbook.add_worksheet("Troço Alimentação")
 
-    def SearchBox_TextChanged(self, sender, e):
-        """Filter the ListBox items based on the search text."""
-        search_text = self.UI_SearchBox.Text.lower()
-        
-        if search_text:
-            filtered_items = [
-                item for item in self.sheet_items if search_text in item.Name.lower()
-            ]
-            self.UI_CheckboxList.ItemsSource = filtered_items
-        else:
-            self.UI_CheckboxList.ItemsSource = self.sheet_items
-   
-    def on_item_clicked(self, sender, e):
-        """Handles Shift+Click selection for checkboxes in the ListBox."""
-        listbox = self.UI_CheckboxList
-        items = listbox.ItemsSource
-        clicked_item = listbox.SelectedItem
+# Cabeçalhos específicos desta aba
+headers_eq = [
+    "Qacumulado Total (l/s)",
+    "Qcálculo Total",
+    "Dcálculo Total",
+    "Dnominal Total",
+    "Dinterno Total",
+    "Velocidade Total (m/s)"
+]
 
-        if not clicked_item:
-            return
+#for col, key in enumerate(headers_eq):
+#    worksheet_eq.write(0, col, key)
 
-        # Get the index of the clicked item
-        current_index = listbox.Items.IndexOf(clicked_item)
+# Valores calculados usando modelo_elem e soma_qacu
+values_eq = [
+    soma_qacu,
+    q_cal_total,
+    d_cal_total,
+    d_nom_total,
+    d_int_total,
+    velocidade_total
+]
 
-        # If Shift key is pressed, select a range of items and check/uncheck them
-        if Input.Keyboard.IsKeyDown(Input.Key.LeftShift) or Input.Keyboard.IsKeyDown(Input.Key.RightShift):
-            if self.last_selected_index is not None:
-                # Sort the selected range to ensure the indices are in order
-                start, end = sorted((self.last_selected_index, current_index))
+# Escrever cabeçalhos e inicializar max_lens
+max_lens_eq = []
+for col, key in enumerate(headers_eq):
+    worksheet_eq.write(0, col, key)
+    max_lens_eq.append(len(str(key)))
 
-                for i in range(start, end + 1):
-                    items[i].IsChecked = True  # ✅ Check all checkboxes in the range
+# Escrever os valores calculados
+values_eq = [soma_qacu, q_cal_total, d_cal_total, d_nom_total, d_int_total, velocidade_total]
 
-                # Refresh the ListBox to reflect the checkbox changes
-                self.UI_CheckboxList.ItemsSource = None
-                self.UI_CheckboxList.ItemsSource = self.sheet_items  # Reset the ItemsSource
+for col, val in enumerate(values_eq):
+    worksheet_eq.write(1, col, val)
+    max_lens_eq[col] = max(max_lens_eq[col], len(str(val)))
 
-            # Update last selected item
-            self.last_selected_index = current_index
-        else:
-            # If Shift is not pressed, just select the item without checking
-            self.last_selected_index = current_index  # Update last selected item
-            clicked_item.IsChecked = not clicked_item.IsChecked  # Toggle checkbox when not Shift-clicking
+# Ajustar a largura das colunas
+for col, width in enumerate(max_lens_eq):
+    worksheet_eq.set_column(col, col, width + 2)
 
-    def save_button(self, sender, e):
-            """Handles the Save button click event and opens the folder picker."""
-            folder_dialog = FolderBrowserDialog()
+#for col, val in enumerate(values_eq):
+#    worksheet_eq.write(1, col, val)
 
-            # Show the folder picker dialog
-            result = folder_dialog.ShowDialog()
+# Fechar workbook
+workbook.close()
+print("Excel exportado com abas das redes e aba do troço equivalente.")
+workbook.close()
 
-            if result == DialogResult.OK:
-                # If a folder is selected, update the TextBox with the folder path
-                selected_path = folder_dialog.SelectedPath
-                self.UI_save_path.Text = selected_path  # Set the selected path to the TextBox
-
-    @property
-    def create_dwg_folder(self):
-        return self.UI_create_dwg_folder.IsChecked
-
-    @property
-    def checkbox_dwfx(self):
-        return self.UI_export_dwfx.IsChecked
-    
-    @property
-    def checkbox_dwg(self):
-        return self.UI_export_dwg.IsChecked
-    
-    @property
-    def save_path(self):
-        return self.UI_save_path.Text
-    
-    @property
-    def dwfx_name(self):
-        return self.UI_dwfx_name.Text
-    
-    @staticmethod
-    def ProcessParallelLists(_func, *lists):
-	    return map( lambda *xs: ProcessParallelLists(_func, *xs) if all(type(x) is list for x in xs) else _func(*xs), *lists )
-
-    
-
-form = ModalForm('MainWindow.xaml')
+t.Commit()
