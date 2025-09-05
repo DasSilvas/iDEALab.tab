@@ -4,7 +4,7 @@ Tentar usar parent class and child classes
 """
 
 import clr
-#import Revit
+
 clr.AddReference("RevitAPI")
 from Autodesk.Revit.DB import *
 from Autodesk.Revit.DB.Structure import *
@@ -34,12 +34,15 @@ class RvtParameterName:
     PIPE_SYSTEM_TYPE = BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM
     FIXTURE_UNITS = BuiltInParameter.RBS_PIPE_FIXTURE_UNITS_PARAM
     PIPE_SYSTEM_CLASSIFICATION = "System Classsification"
+    PIPE_FITTING_DIAMETER = BuiltInParameter.RBS_PIPE_DIAMETER_PARAM
 
 class RvtClasses:
     VIEW_TYPE = ViewFamilyType
     VIEW = View
+    PIPING_SYSTEM = MEPSystem
     PIPES = MEPCurve
-
+    LEVEL = Level
+    
 class RvtApi:
 
     @staticmethod
@@ -59,6 +62,16 @@ class RvtApi:
         else:
             element = FilteredElementCollector(doc).OfClass(classe).WhereElementIsNotElementType().ToElements()
             return element
+        
+    @staticmethod
+    def get_elements_byparameter(doc, element_class, filter_parameter, filter_value):
+        #Parameter to filter
+        f_parameter = ParameterValueProvider(ElementId(filter_parameter))
+        #Create a rule
+        f_rule = FilterStringRule(f_parameter, FilterStringEquals(), filter_value)
+        filter_system = ElementParameterFilter(f_rule)
+        elements = FilteredElementCollector(doc).OfClass(element_class).WherePasses(filter_system).ToElements()
+        return elements
 
     @staticmethod
     def criar_vista(doc, vista, origem, x, y, zi, zf, vector_x, vector_y, vector_z, offset):
@@ -89,16 +102,6 @@ class RvtApi:
 
         return section
 
-    @staticmethod
-    def get_elements_byparameter(doc, element_class, filter_parameter, filter_value):
-        #Parameter to filter
-        f_parameter = ParameterValueProvider(ElementId(filter_parameter))
-        #Create a rule
-        f_rule = FilterStringRule(f_parameter, FilterStringEquals(), filter_value)
-        filter_system = ElementParameterFilter(f_rule)
-        elements = FilteredElementCollector(doc).OfClass(element_class).WherePasses(filter_system).ToElements()
-        return elements
-
 class Funk:
 
     @staticmethod
@@ -123,10 +126,15 @@ class Funk:
             bbox_min = elemento.bbox.Min
             bbox_max = elemento.bbox.Max
             bbox_mid = XYZ(bbox_min.X, bbox_min.Y, bbox_min.Z + (bbox_max.Z - bbox_min.Z)/2 )
+            bbox_xmid = XYZ(bbox_min.X, (bbox_min.Y + 0.65), bbox_min.Z)
 
             if bbox == "Mid":
 
                 outline = Outline(bbox_mid, bbox_max)
+
+            elif bbox == "XMid":
+
+                outline = Outline(bbox_xmid, bbox_max)
 
             else:
 
@@ -865,27 +873,51 @@ class Pipes():
         self.nome = elemento.Name
         self.type = doc.GetElement(elemento.GetTypeId())
         self.caudal_acumulado = elemento.get_Parameter(RvtParameterName.FIXTURE_UNITS).AsDouble()
-        self.system_type = elemento.LookupParameter("System Classification").AsString()
-        self.tubo_queda = elemento.LookupParameter("Tudo de Queda")
+        self.system_type = elemento.LookupParameter("System Type").AsValueString()
+        self.tubo_queda = elemento.LookupParameter("Tubo de Queda")
+        self.colector = elemento.LookupParameter("Colector").AsInteger()
+        self.rni = elemento.LookupParameter("RNI").AsInteger()
+        self.bbox = elemento.get_BoundingBox(None)
+        self.troco = elemento.LookupParameter("Troço").AsString()
+        self.slope = round(elemento.get_Parameter(BuiltInParameter.RBS_PIPE_SLOPE).AsDouble(),3)
 
     def set_diameter(self, diameter):
         self.elemento.LookupParameter("Diameter").Set(diameter)
+    
+    def set_qcal(self, qcal):
+        self.elemento.LookupParameter("Qcal").Set(qcal)
+    
+    def set_dcal(self, dcal):
+        self.elemento.LookupParameter("Dcal").Set(dcal)
+
+    def set_tau(self, tau):
+        self.elemento.LookupParameter("Tensao Arrastamento").Set(tau)
+
+    def set_velocity(self, velocity):
+        self.elemento.LookupParameter("Velocidade").Set(velocity)
+
+    def set_h_over_d(self, h_over_d):
+        self.elemento.LookupParameter("h/d").Set(h_over_d)
+
+    @classmethod
+    def filter_by_system(cls, pipes, system):
+        return [pipe for pipe in pipes if pipe.system_type == system]
 
 class PlumbingFixture(Element):
 
     def __init__(self, doc, elemento):
         Element.__init__(self, doc, elemento)
-        self.system_type = elemento.LookupParameter("System Classification").AsString()
+        self.system_type = elemento.LookupParameter("System Type").AsValueString()
         #self.caudal_acumulado = elemento.get_Parameter(RvtParameterName.FIXTURE_UNITS).AsDouble()
 
     @classmethod
     def filter_by_system(cls, fixtures, system):
         return [fixture for fixture in fixtures if fixture.system_type == system]
-    
+
 class PipeFitting(Element):
     def __init__(self, doc, elemento):
         Element.__init__(self, doc, elemento)
-        self.system_type = elemento.LookupParameter("System Classification").AsString()
+        self.system_type = elemento.LookupParameter("System Type").AsValueString()
 
     @classmethod
     def filter_by_system(cls, fittings, system):
