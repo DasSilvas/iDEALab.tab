@@ -35,6 +35,9 @@ class RvtParameterName:
     FIXTURE_UNITS = BuiltInParameter.RBS_PIPE_FIXTURE_UNITS_PARAM
     PIPE_SYSTEM_CLASSIFICATION = "System Classsification"
     PIPE_FITTING_DIAMETER = BuiltInParameter.RBS_PIPE_DIAMETER_PARAM
+    PIPE_SYSTEM_NAME = BuiltInParameter.RBS_SYSTEM_NAME_PARAM
+    FLOW = BuiltInParameter.RBS_PIPE_FLOW_PARAM
+    PIPE_INSIDE_DIAMETER = BuiltInParameter.RBS_PIPE_INNER_DIAM_PARAM
 
 class RvtClasses:
     VIEW_TYPE = ViewFamilyType
@@ -880,6 +883,8 @@ class Pipes():
         self.bbox = elemento.get_BoundingBox(None)
         self.troco = elemento.LookupParameter("Troço").AsString()
         self.slope = round(elemento.get_Parameter(BuiltInParameter.RBS_PIPE_SLOPE).AsDouble(),3)
+        self.aa_q_acumulado = round(elemento.LookupParameter("Flow").AsDouble()*28.317,2)
+        self.inside_diameter = elemento.get_Parameter(RvtParameterName.PIPE_INSIDE_DIAMETER).AsDouble()
 
     def set_diameter(self, diameter):
         self.elemento.LookupParameter("Diameter").Set(diameter)
@@ -889,6 +894,9 @@ class Pipes():
     
     def set_dcal(self, dcal):
         self.elemento.LookupParameter("Dcal").Set(dcal)
+
+    def set_d_interno(self, d_interno):
+        self.elemento.LookupParameter("D_interno").Set(d_interno)
 
     def set_tau(self, tau):
         self.elemento.LookupParameter("Tensao Arrastamento").Set(tau)

@@ -11,9 +11,41 @@ dmin_col = 125
 k= 120
 i = 0.02
 
+#Caudal acumulado de cálculo segundo via gráfica do regulamento para um nível de conforto médio, da fig.51 pág.75 de Manual
+
+
+def aa_qcal(caudal_acumulado):
+        if caudal_acumulado <= 3.5:
+            qe = round(0.5469*caudal_acumulado**0.5137, 2)
+        elif 3.5 < caudal_acumulado <=25:
+            qe = round(0.5226*caudal_acumulado**0.5364, 2)
+        elif 25 < caudal_acumulado <= 500:
+            qe = round(0.2525*caudal_acumulado**0.7587, 2)
+        else:
+            qe = 9999
+        return qe  
+
+#calculo do diametro de cálculo para tubos de água, considerando velocidade máxima de 2 m/s dai v=2
+
+def aa_d_cal(caudal_calculo):
+    v = 2
+
+    d = round(math.sqrt((1.273*(caudal_calculo/1000))/v)*1000, 2)
+
+    return d
+
+#Calculo da velocidade do escomaento para tubos de água, considerando o caudal de cálculo e o diametro interno do tubo
+
+def aa_velocidade(caudal_cal, d_interno):
+    vel = round(((caudal_cal*4000)/(math.pi*(d_interno**2))), 2)
+    return vel
+
+#Caudal acumulado de cálculo segundo via gráfica do regulamento, da fig.175 pág.274 de Manual
+
 def q_cal(caudal_acumulado):
     qe = round(7.3497*caudal_acumulado**0.5352,2)
     return min(caudal_acumulado, qe)
+
 
 #Calculo do diametro de cálculo do tubo de queda
 
