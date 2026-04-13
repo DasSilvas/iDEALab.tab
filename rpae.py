@@ -114,12 +114,12 @@ def calc_h_over_D(Q_l_min, D_mm, i_percent, K=100, gamma=9800, section="parcial"
     """
     
     # --- Conversões ---
-    Q = Q_l_min / 1000 / 60       # L/mSin -> m³/s
-    D = D_mm              # mm -> m
+    Q = float(Q_l_min / 1000 / 60)      # L/mSin -> m³/s
+    D = float(D_mm) / 1000            # mm -> m
     i = float(i_percent)          # % -> fração
     #n = 1 / K                     # Manning
     
-    if D <= 0:
+    if D <= 0.0:
         raise ValueError("Diâmetro inválido: deve ser > 0 mm")
 
     if i < 0.01:
@@ -128,10 +128,10 @@ def calc_h_over_D(Q_l_min, D_mm, i_percent, K=100, gamma=9800, section="parcial"
     # --- Tubo cheio ---
     A_full = (math.pi * (D**2)) *0.25
     P_full = math.pi * D
-    if P_full == 0:
+    if P_full == 0.0:
         raise ZeroDivisionError("Perímetro hidráulico inválido (P_full == 0).")
     R_full = A_full / P_full
-    Q_full = K * A_full * (R_full**(0.67)) * math.sqrt(i)
+    Q_full = K * A_full * (R_full**(2.0/3.0)) * math.sqrt(i)
     
     # Inicializa variáveis
     h_over_D = 1.0
@@ -139,39 +139,51 @@ def calc_h_over_D(Q_l_min, D_mm, i_percent, K=100, gamma=9800, section="parcial"
     A = A_full
     P = P_full
     R = R_full
-    v = Q / A_full if A_full > 0 else 0
-    theta = 2 * math.pi
+    v = Q / A_full if A_full > 0.0 else 0.0
+    theta = 2.0 * math.pi
     
     if section == "parcial":
         phi = Q / Q_full   # fração do caudal cheio
 
         # --- Função adimensional F(θ) ---
         def F(theta):
-            if theta <= 0 or theta >= 2*math.pi:
+            if theta <= 0.0 or theta >= 2.0*math.pi:
                 return -phi
-            area_ratio = (theta - math.sin(theta)) / (2*math.pi)
+            area_ratio = (theta - math.sin(theta)) / (2.0*math.pi)
             R_ratio = (theta - math.sin(theta)) / theta
-            return area_ratio * (R_ratio**(2/3)) - phi
+            return area_ratio * (R_ratio**(2.0/3.0)) - phi
 
         # --- Resolver para θ (bisseção simples) ---
-        a, b = 1e-6, 2*math.pi - 1e-6
-        for _ in range(100):
-            mid = (a + b) / 2
-            if F(a) * F(mid) <= 0:
+        a, b = 1e-6, 2.0*math.pi - 1e-6
+        tol = 1e-12
+        max_iter = 200
+        fa = F(a)
+
+        for _ in range(max_iter):
+            mid = (a + b) / 2.0
+            fm = F(mid)
+
+            if abs(fm) < tol:
+                break
+
+            # evitar recalcular F(a) sempre
+            if fa * fm <= 0.0:
                 b = mid
             else:
                 a = mid
-        theta = (a + b) / 2
+                fa = fm
+
+        theta = (a + b) / 2.0
 
         # --- Calcular h/D ---
-        h_over_D = (1 - math.cos(theta/2)) / 2
+        h_over_D = (1.0 - math.cos(theta/2.0)) / 2.0
         h = h_over_D * D
 
         # --- Geometria parcial ---
-        A = (D**2 / 8) * (theta - math.sin(theta))
-        P = (D/2) * theta
+        A = (D**2 / 8.0) * (theta - math.sin(theta))
+        P = (D/2.0) * theta
         R = A / P
-        v = Q / A if A > 0 else 0
+        v = Q / A if A > 0.0 else 0.0
     
     # --- Tensão de arrastamento ---
     tau = gamma * R * i  # N/m²
@@ -181,7 +193,7 @@ def calc_h_over_D(Q_l_min, D_mm, i_percent, K=100, gamma=9800, section="parcial"
 #testing purposes
 if __name__ == "__main__":
     #Caudal de cálculo
-    qs = 540
+    qs = 90
     taxa_ocupacao = 0.17
 
 
@@ -195,4 +207,8 @@ if __name__ == "__main__":
     diametro_rni = d_pvc(dia_rni)
 
     teste = tensao_arrastamento(105.69,1)
-    print(teste)
+
+    # --- Exemplo ---
+    res_parcial = calc_h_over_D(Q_l_min=285.1, D_mm=125, i_percent=2/100, K=100, section="parcial")
+    
+    print(res_parcial)
