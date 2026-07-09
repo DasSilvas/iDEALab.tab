@@ -48,7 +48,7 @@ class Element:
         self.q_acu = round(elemento.LookupParameter("Flow").AsDouble()*28.317,2)
         self.comprimento = round(elemento.LookupParameter("Length").AsDouble()/3.281,2)
         self.fu = elemento.LookupParameter("Fixture Units").AsDouble()
-        self.troco = elemento.LookupParameter("Troço").AsString()
+        self.troco = elemento.LookupParameter("Comments").AsString()
         self.zona = elemento.LookupParameter("Zona").AsString()
         self.dispositivos = 1
         self.lvl_name = self.get_lvl_name()
@@ -94,11 +94,11 @@ class Element:
         
         # Separar prefixos e sufixos
         trocos_info = []
-        prefixos_validos = {"CH", "MLL", "MLR", "LV", "LL", "BR", "BA", "BD","BRE","LV1","LV2","TE"}
+        prefixos_validos = {"CH", "MLL", "MLR", "LV", "LL", "BR", "BA", "BD","BRE","LV1","LV2","TA", "MQ", "MQ1", "MQ2", "BDR1", "BDR2", "BDR3","BDR4", "BDR5", "BDR6"}
         for troco in trocos_unicos:
             partes = troco.split('-')
             if len(partes) == 2:
-                prefixo, sufixo = partes
+                prefixo, sufixo, = partes
                 trocos_info.append({
                     'original': troco,
                     'prefixo': prefixo,
@@ -426,7 +426,7 @@ for l in levels:
     if l.Name == "RUA":
         lvl_abastecimento = round(l.Elevation/3.281)
 
-caminho = r"C:\Users\jf\Desktop\Nova pasta\alentejo_quente.xlsx"
+caminho = r"C:\Users\Utilizador\Dropbox\02-Eng.Civil\pai\01-PROJETOS\019_2026-Modulo73_Tremes\01-WIP\cal_aguas.xlsx"
 
 t = Transaction(doc, "Relatorio Aguas")
 t.Start()
