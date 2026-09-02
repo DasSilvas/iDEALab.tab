@@ -40,6 +40,18 @@ def aa_velocidade(caudal_cal, d_interno):
     vel = round(((caudal_cal*4000)/(math.pi*(d_interno**2))), 2)
     return vel
 
+def perda_carga(v, d, b="plastico"):
+    if b == "aco":
+        b = 0.000152
+    else:
+        b = 0.000134
+
+    d_meters = d/1000
+
+    j = round(4*b*((v)**(1.75))*((d_meters)**(-1.25)), 6)
+
+    return j
+
 #Caudal acumulado de cálculo segundo via gráfica do regulamento, da fig.175 pág.274 de Manual
 
 def q_cal(caudal_acumulado):

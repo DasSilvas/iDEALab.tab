@@ -25,6 +25,7 @@ class RvtApiCategory:
     PIPES = BuiltInCategory.OST_PipeCurves
     PIPE_FITTINGS = BuiltInCategory.OST_PipeFitting
     PLUMBING_FIXTURES = BuiltInCategory.OST_PlumbingFixtures
+    PIPE_ACCESSORIES = BuiltInCategory.OST_PipeAccessory
 
 class RvtParameterName:
 
@@ -274,7 +275,7 @@ class Viga(Element):
         self.largura = self.type.LookupParameter("b").AsDouble()
         self.altura = self.type.LookupParameter("h").AsDouble()
         self.cut_comprimento = elemento.LookupParameter("Cut Length").AsDouble()
-        self.comprimento = elemento.LookupParameter("Length").AsDouble()
+        self.comprimento = elemento.LookupParameter("System Length").AsDouble()
         self.covertype = doc.GetElement(elemento.LookupParameter("Rebar Cover - Other Faces").AsElementId())
         self.cover_length = self.covertype.LookupParameter("Length").AsDouble()
         rdc = self.code.split(".")
@@ -414,7 +415,7 @@ class Pilar(Element):
         self.b = self.type.LookupParameter("b").AsDouble()
         self.h = self.type.LookupParameter("h").AsDouble()
         self.cmp = elemento.get_Parameter(BuiltInParameter.INSTANCE_LENGTH_PARAM).AsDouble()
-        self.comprimento = elemento.LookupParameter("Length").AsDouble()
+        self.comprimento = elemento.LookupParameter("System Length").AsDouble()
         self.covertype = doc.GetElement(elemento.LookupParameter("Rebar Cover - Other Faces").AsElementId())
         self.cover_length = self.covertype.LookupParameter("Length").AsDouble()
         rdc = self.code.split(".")
@@ -636,7 +637,7 @@ class Sapata(Element):
 
             Element.__init__(self, doc, elemento)
             self.largura = self.type.LookupParameter("Width").AsDouble()
-            self.altura = self.type.LookupParameter("Thickness").AsDouble()
+            self.altura = self.type.LookupParameter("Foundation Thickness").AsDouble()
             self.comprimento = self.type.LookupParameter("Length").AsDouble()
             self.top_covertype = doc.GetElement(elemento.LookupParameter("Rebar Cover - Top Face").AsElementId())
             self.top_cover_length = self.top_covertype.LookupParameter("Length").AsDouble()
@@ -875,41 +876,260 @@ class Pipes():
         self.elemento = elemento
         self.nome = elemento.Name
         self.type = doc.GetElement(elemento.GetTypeId())
-        self.caudal_acumulado = elemento.get_Parameter(RvtParameterName.FIXTURE_UNITS).AsDouble()
+        #self.caudal_acumulado = elemento.get_Parameter(RvtParameterName.FIXTURE_UNITS).AsDouble()
         self.system_type = elemento.LookupParameter("System Type").AsValueString()
-        self.tubo_queda = elemento.LookupParameter("Tubo de Queda")
-        self.colector = elemento.LookupParameter("Colector").AsInteger()
-        self.rni = elemento.LookupParameter("RNI").AsInteger()
+        self.comprimento = round(elemento.LookupParameter("Length").AsDouble()/3.281,2)
+        #self.tubo_queda = elemento.LookupParameter("Tubo de Queda")
+        #self.colector = elemento.LookupParameter("Colector").AsInteger()
+        #self.rni = elemento.LookupParameter("RNI").AsInteger()
         self.bbox = elemento.get_BoundingBox(None)
         self.troco = elemento.LookupParameter("Troço").AsString()
-        self.slope = round(elemento.get_Parameter(BuiltInParameter.RBS_PIPE_SLOPE).AsDouble(),3)
-        self.aa_q_acumulado = round(elemento.LookupParameter("Flow").AsDouble()*28.317,2)
-        self.inside_diameter = elemento.get_Parameter(RvtParameterName.PIPE_INSIDE_DIAMETER).AsDouble()
+        self.slope = round(elemento.get_Parameter(BuiltInParameter.RBS_PIPE_SLOPE).AsDouble(),4)
+        lvl = doc.GetElement(self.elemento.LookupParameter("Reference Level").AsElementId())
+        self.lvl_name = lvl.Name
+        self.lvl_elevation = round(lvl.Elevation/3.281, 2)
 
     def set_diameter(self, diameter):
         self.elemento.LookupParameter("Diameter").Set(diameter)
     
     def set_qcal(self, qcal):
         self.elemento.LookupParameter("Qcal").Set(qcal)
-    
+
     def set_dcal(self, dcal):
         self.elemento.LookupParameter("Dcal").Set(dcal)
 
     def set_d_interno(self, d_interno):
         self.elemento.LookupParameter("D_interno").Set(d_interno)
 
-    def set_tau(self, tau):
-        self.elemento.LookupParameter("Tensao Arrastamento").Set(tau)
-
     def set_velocity(self, velocity):
         self.elemento.LookupParameter("Velocidade").Set(velocity)
 
-    def set_h_over_d(self, h_over_d):
-        self.elemento.LookupParameter("h/d").Set(h_over_d)
+    def set_perda_carga(self, perda_carga):
+        self.elemento.LookupParameter("J (m/m)").Set(perda_carga)
 
+    def set_jl(self, jl):
+        self.elemento.LookupParameter("JxL (m.c.a)").Set(jl)
+
+    def set_jacumulado(self, j_acumulado):
+        self.elemento.LookupParameter("Jacumulado (m.c.a)").Set(j_acumulado)
+
+    def get_qcal(self):
+        return self.elemento.LookupParameter("Qcal").AsDouble()
+
+    def get_dcal(self):
+        return self.elemento.LookupParameter("Dcal").AsDouble()
+
+    def get_velocidade(self):
+        return self.elemento.LookupParameter("Velocidade").AsDouble()
+
+    def get_perda_carga(self):
+        return self.elemento.LookupParameter("J (m/m)").AsDouble()
+
+    def get_jl(self):
+        return self.elemento.LookupParameter("JxL (m.c.a)").AsDouble()
+
+    def get_jacumulado(self):
+        return self.elemento.LookupParameter("Jacumulado (m.c.a)").AsDouble()
+    
     @classmethod
     def filter_by_system(cls, pipes, system):
         return [pipe for pipe in pipes if pipe.system_type == system]
+
+
+class WaterPipes(Pipes):
+    
+    def __init__(self, doc, elemento):
+        Pipes.__init__(self, doc, elemento)
+        self.caudal_acumulado = round(elemento.LookupParameter("Flow").AsDouble()*28.317,2)
+        self.inside_diameter = elemento.get_Parameter(RvtParameterName.PIPE_INSIDE_DIAMETER).AsDouble()
+        self.contador = elemento.LookupParameter("Contador").AsInteger()
+        self.troco = elemento.LookupParameter("Troço").AsString()
+        self.troco_auto = self.troco
+        self.zona = elemento.LookupParameter("Zona").AsString()
+        self.dispositivos = 1
+        
+    def set_dispositivos(self, valor):
+            v = self.elemento.LookupParameter("Nr Dispositivos").Set(valor)
+            return v
+    
+    def d_nominal(self, valor):
+        if valor < 12:
+            d = 16
+        elif valor < 16:
+            d = 20
+        elif valor < 20:
+            d = 26
+        elif valor < 26:
+            d = 32
+        elif valor < 32:
+            d = 40
+        elif valor < 42:
+            d = 50
+        elif valor < 54:
+            d = 63
+        elif valor < 67:
+            d = 75
+        elif valor < 82:
+            d = 90
+        else:
+            d = 110
+        
+        return d
+
+    def d_interno(self, valor):
+        if valor == 16:
+            d_int = 12
+        elif valor == 20:
+            d_int = 16
+        elif valor == 26:
+            d_int = 20
+        elif valor == 32:
+            d_int = 26
+        elif valor == 40:
+            d_int = 32
+        elif valor == 50:
+            d_int = 42
+        elif valor == 63:
+            d_int = 56
+        elif valor == 75:   
+            d_int = 66
+        elif valor == 90:
+            d_int = 73
+        elif valor == 110:
+            d_int = 90
+        else:
+            d_int = "error"
+
+        return float(d_int)
+
+    @classmethod    
+    def processar_trocos(cls, lista_trocos):
+        """
+        Processa uma lista de troços removendo duplicados e calculando o número de dispositivos.
+        
+        Regras:
+        1. Remover duplicados
+        2. Por defeito, troços com prefixo numérico têm 1 dispositivo
+        3. Quando vários sufixos iguais existem em troços diferentes, 
+        o troço com prefixo igual ao sufixo deve somar os números de dispositivos
+        4. Considera todos os valores da lista, mesmo os que aparecem depois
+        """
+        
+        # Remover duplicados mantendo a ordem
+        trocos_unicos = []
+        for item in lista_trocos:
+            if item.troco not in trocos_unicos:
+                trocos_unicos.append(item.troco)
+        
+        # Separar prefixos e sufixos
+        trocos_info = []
+        prefixos_validos = {"CH", "MLL", "MLR", "LV", "LL", "BR", "BA", "BD","BRE","LV1","LV2","TA", "MQ", "MQ1", "MQ2", "BDR1", "BDR2", "BDR3","BDR4", "BDR5", "BDR6"}
+        for troco in trocos_unicos:
+            partes = troco.split('-')
+            if len(partes) == 2:
+                prefixo, sufixo, = partes
+                trocos_info.append({
+                    'original': troco,
+                    'prefixo': prefixo,
+                    'sufixo': sufixo,
+                    'dispositivos': 1 if prefixo in prefixos_validos else 0
+                })
+        
+        # Criar mapeamentos para análise completa
+        # Mapa de sufixos para troços que terminam nesse sufixo
+        sufixos_para_trocos = {}
+        # Mapa de prefixos para troços que começam com esse prefixo
+        prefixos_para_trocos = {}
+        
+        for info in trocos_info:
+            sufixo = info['sufixo']
+            prefixo = info['prefixo']
+            
+            if sufixo not in sufixos_para_trocos:
+                sufixos_para_trocos[sufixo] = []
+            sufixos_para_trocos[sufixo].append(info)
+            
+            if prefixo not in prefixos_para_trocos:
+                prefixos_para_trocos[prefixo] = []
+            prefixos_para_trocos[prefixo].append(info)
+        
+        # Fazer múltiplas passagens até não haver mais mudanças
+        # Isso garante que consideramos todos os valores, mesmo os que aparecem depois
+        mudancas = True
+        iteracao = 0
+        max_iteracoes = len(trocos_info) + 1  # Evitar loop infinito
+        
+        while mudancas and iteracao < max_iteracoes:
+            mudancas = False
+            iteracao += 1
+            
+            for info in trocos_info:
+                prefixo = info['prefixo']
+                dispositivos_anteriores = info['dispositivos']
+                
+                # Se este prefixo aparece como sufixo noutros troços
+                if prefixo in sufixos_para_trocos:
+                    # Somar dispositivos dos troços que terminam neste prefixo
+                    dispositivos_a_somar = 0
+                    trocos_contribuintes = []
+                    
+                    for troco_com_sufixo in sufixos_para_trocos[prefixo]:
+                        # Só contar troços que têm dispositivos (evitar loops infinitos)
+                        if troco_com_sufixo['dispositivos'] > 0:
+                            dispositivos_a_somar += troco_com_sufixo['dispositivos']
+                            trocos_contribuintes.append(troco_com_sufixo['original'])
+                    
+                    # Atualizar o número de dispositivos se houver contribuições
+                    if dispositivos_a_somar > 0 and not info['prefixo'].isdigit():
+                        novo_valor = dispositivos_a_somar
+                        if info['dispositivos'] != novo_valor:
+                            info['dispositivos'] = novo_valor
+                            mudancas = True
+    
+        # 2. Criar mapa final troco -> dispositivos
+        troco_para_dispositivos = {info['original']: info['dispositivos'] for info in trocos_info}
+            
+        # 3. Atualizar todos os elementos originais (mesmo duplicados)
+        for elem in lista_trocos:
+            if elem.troco in troco_para_dispositivos:
+                elem.dispositivos = troco_para_dispositivos[elem.troco]
+            else:
+                elem.dispositivos = 1  # fallback
+        
+        return lista_trocos
+
+    @classmethod
+    def aninhar_por_zona_troco(cls, lista_elementos):
+        """
+        Retorna lista ordenada de elementos, priorizando:
+        1) lvl_elevation (mais baixo → mais alto)
+        2) zona (alfabético)
+        3) troço
+        """
+        from operator import attrgetter
+
+        # Ordenação múltipla usando tupla: elevation → zona → troço
+        lista_ordenada = sorted(
+            lista_elementos,
+            key=lambda e: (e.lvl_elevation, e.zona, e.troco)
+        )
+        
+        return lista_ordenada
+
+class SewagePipes(Pipes):
+    
+    def __init__(self, doc, elemento):
+        Pipes.__init__(self, doc, elemento)
+        self.caudal_acumulado = elemento.get_Parameter(RvtParameterName.FIXTURE_UNITS).AsDouble()
+        self.tubo_queda = elemento.LookupParameter("Tubo de Queda")
+        self.colector = elemento.LookupParameter("Colector").AsInteger()
+        self.rni = elemento.LookupParameter("RNI").AsInteger()
+
+    def set_tau(self, tau):
+        self.elemento.LookupParameter("Tensao Arrastamento").Set(tau)
+
+    def set_h_over_d(self, h_over_d):
+        self.elemento.LookupParameter("h/d").Set(h_over_d)
 
 class PlumbingFixture(Element):
 
@@ -922,11 +1142,27 @@ class PlumbingFixture(Element):
     def filter_by_system(cls, fixtures, system):
         return [fixture for fixture in fixtures if fixture.system_type == system]
 
-class PipeFitting(Element):
+class PipeFitting:
+    """Wrapper mínimo para fittings — só para construir o grafo"""
     def __init__(self, doc, elemento):
-        Element.__init__(self, doc, elemento)
-        self.system_type = elemento.LookupParameter("System Type").AsValueString()
+        self.elemento = elemento
+        self.nome = elemento.Name
+        self.troco_auto = None
+        self.contador = 0
+        try:
+            self.system_type = elemento.LookupParameter("System Type").AsValueString()
+        except:
+            self.system_type = None
 
-    @classmethod
-    def filter_by_system(cls, fittings, system):
-        return [fitting for fitting in fittings if fitting.system_type == system]
+    def get_nome_sistema(self):
+        try:
+            from Autodesk.Revit.DB import BuiltInParameter
+            return self.elemento.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString()
+        except:
+            return None
+
+    @staticmethod
+    def filter_by_system(lista, prefixo):
+        return [f for f in lista if f.get_nome_sistema() and 
+                f.get_nome_sistema().startswith(prefixo)]
+
