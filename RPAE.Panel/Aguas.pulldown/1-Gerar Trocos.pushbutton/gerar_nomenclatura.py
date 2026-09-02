@@ -4,35 +4,21 @@ __title__ = "1-Geral Nomenclatura"
 __doc__ = "Gera a nomenclatura automática de troços e nós para redes de águas e o respetivo numero de dispositivos"
 __author__ = "Joao Ferreira, OE nº 86233"
 
-# Load the Python Standard and DesignScript Libraries
+
+# ============================================================
+# IMPORTS
+# ============================================================
+
 import clr
+import os
+import sys
 
-clr.AddReference('ProtoGeometry')
-from Autodesk.DesignScript import Geometry as geom
-
-clr.AddReference("RevitNodes")
-import Revit
-from Revit import Elements
-clr.ImportExtensions(Revit.Elements)
-clr.ImportExtensions(Revit.GeometryConversion)
-
-clr.AddReference("RevitAPI")
-from Autodesk.Revit.DB import *
-from Autodesk.Revit.DB.Structure import *
-
-clr.AddReference("RevitServices")
-from RevitServices.Persistence import DocumentManager
-from RevitServices.Transactions import TransactionManager
-
-clr.AddReference('RevitAPIUI')
-from Autodesk.Revit.UI import *
-
-from collections import defaultdict
 from collections import deque
 
-import os.path
-import sys
-import math
+
+clr.AddReference("RevitAPI")
+
+from Autodesk.Revit.DB import *
 
 
 # ============================================================
@@ -40,10 +26,20 @@ import math
 # ============================================================
 
 grandparent_dir = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..', '..', '..')
+    os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        ".."
+    )
 )
 
-sys.path.insert(0, grandparent_dir)
+if grandparent_dir not in sys.path:
+    sys.path.insert(
+        0,
+        grandparent_dir
+    )
+
 
 from classes import WaterPipes, PipeFitting
 from classes import RvtApi as rvt
@@ -59,25 +55,35 @@ doc = __revit__.ActiveUIDocument.Document
 
 
 # ============================================================
+# CONSTANTES DE CATEGORIA
+# ============================================================
+
+PIPE_CATEGORY_ID = int(
+    BuiltInCategory.OST_PipeCurves
+)
+
+FITTING_CATEGORY_ID = int(
+    BuiltInCategory.OST_PipeFitting
+)
+
+FIXTURE_CATEGORY_ID = int(
+    BuiltInCategory.OST_PlumbingFixtures
+)
+
+
+# ============================================================
 # CONNECTORS
 # ============================================================
 
 def get_connector_manager(elemento):
-    """
-    Obtém ConnectorManager independentemente
-    do tipo de elemento.
-    """
 
     try:
-        # Pipes e outros MEP elements
         return elemento.ConnectorManager
 
     except AttributeError:
         pass
 
     try:
-        # FamilyInstance:
-        # fittings, válvulas, acessórios, fixtures, etc.
         return elemento.MEPModel.ConnectorManager
 
     except:
@@ -85,13 +91,23 @@ def get_connector_manager(elemento):
 
 
 # ============================================================
-# DETETAR FITTING T
+# ID DO ELEMENTO
+# ============================================================
+
+def get_element_id(elemento):
+
+    try:
+        return int(elemento.Id.Value)
+
+    except:
+        return str(elemento.Id)
+
+
+# ============================================================
+# FITTING T
 # ============================================================
 
 def e_fitting_T(elemento):
-    """
-    True se o elemento tiver 3 ou mais conectores.
-    """
 
     try:
 
@@ -100,16 +116,30 @@ def e_fitting_T(elemento):
         if cm is None:
             return False
 
+        # Na maioria dos casos conseguimos obter
+        # diretamente o número de connectors.
+        try:
+            return cm.Connectors.Size >= 3
+
+        except:
+            pass
+
+        # Fallback
         it = cm.Connectors.ForwardIterator()
 
         count = 0
 
         while it.MoveNext():
+
             count += 1
 
-        return count >= 3
+            if count >= 3:
+                return True
+
+        return False
 
     except:
+
         return False
 
 
@@ -121,30 +151,40 @@ def gerar_trocos_automatico(elementos):
 
     id_to_elem = {}
     ligacoes = {}
+    ligacoes_set = {}
 
     # --------------------------------------------------------
-    # Criar dicionário ID -> elemento
+    # Criar dicionários
     # --------------------------------------------------------
 
     for elem in elementos:
 
-        elem_id = elem.elemento.Id.Value
+        elem_id = get_element_id(
+            elem.elemento
+        )
 
         id_to_elem[elem_id] = elem
+
         ligacoes[elem_id] = []
+
+        ligacoes_set[elem_id] = set()
 
 
     # --------------------------------------------------------
-    # Construir grafo através dos connectors
+    # Construir grafo
     # --------------------------------------------------------
 
     for elem in elementos:
 
-        elem_id = elem.elemento.Id.Value
+        elem_id = get_element_id(
+            elem.elemento
+        )
 
         try:
 
-            cm = get_connector_manager(elem.elemento)
+            cm = get_connector_manager(
+                elem.elemento
+            )
 
             if cm is None:
                 continue
@@ -153,84 +193,90 @@ def gerar_trocos_automatico(elementos):
 
             while it.MoveNext():
 
-                c = it.Current
+                connector = it.Current
 
-                refs_it = c.AllRefs.ForwardIterator()
+                if not connector.IsConnected:
+                    continue
+
+                refs_it = (
+                    connector.AllRefs.ForwardIterator()
+                )
 
                 while refs_it.MoveNext():
 
                     ref = refs_it.Current
                     owner = ref.Owner
 
-                    if owner:
+                    if owner is None:
+                        continue
 
-                        other_id = owner.Id.Value
+                    other_id = get_element_id(
+                        owner
+                    )
 
-                        # Só interessa se o elemento
-                        # pertence à rede
+                    if (
+                        other_id in id_to_elem
+                        and other_id != elem_id
+                    ):
+
                         if (
-                            other_id in id_to_elem
-                            and other_id != elem_id
+                            other_id
+                            not in ligacoes_set[elem_id]
                         ):
 
-                            if other_id not in ligacoes[elem_id]:
+                            ligacoes_set[
+                                elem_id
+                            ].add(
+                                other_id
+                            )
 
-                                ligacoes[elem_id].append(
-                                    other_id
-                                )
+                            ligacoes[
+                                elem_id
+                            ].append(
+                                other_id
+                            )
 
-        except Exception as ex:
-
-            print(
-                "Erro grafo ID {0}: {1}".format(
-                    elem_id,
-                    ex
-                )
-            )
+        except:
 
             continue
 
 
     # ========================================================
-    # ENCONTRAR ORIGEM DA REDE
+    # ENCONTRAR ORIGEM
     # ========================================================
 
     contador_id = None
 
 
     # --------------------------------------------------------
-    # 1. Procurar Contador = 1
-    #
-    # IMPORTANTE:
-    # Não usamos isinstance(elem, Element)
-    # porque agora os pipes são WaterPipes.
+    # 1. Contador = 1
     # --------------------------------------------------------
 
     for elem in elementos:
 
-        if hasattr(elem, "contador"):
+        if not hasattr(
+            elem,
+            "contador"
+        ):
+            continue
 
-            try:
+        try:
 
-                if elem.contador == 1:
+            if elem.contador == 1:
 
-                    contador_id = elem.elemento.Id.Value
+                contador_id = get_element_id(
+                    elem.elemento
+                )
 
-                    print(
-                        "Contador encontrado: ID {0}".format(
-                            contador_id
-                        )
-                    )
+                break
 
-                    break
+        except:
 
-            except:
-                pass
+            pass
 
 
     # --------------------------------------------------------
-    # 2. Se não encontrou contador,
-    #    procurar Termoacumulador
+    # 2. Termoacumulador
     # --------------------------------------------------------
 
     if contador_id is None:
@@ -241,33 +287,36 @@ def gerar_trocos_automatico(elementos):
 
             try:
 
-                cat_id = elem.elemento.Category.Id.Value
+                elemento = elem.elemento
 
-                if cat_id != int(
-                    BuiltInCategory.OST_PlumbingFixtures
-                ):
+                category = elemento.Category
 
+                if category is None:
                     continue
 
+                if (
+                    int(category.Id.Value)
+                    != FIXTURE_CATEGORY_ID
+                ):
+                    continue
 
-                nome_lower = elem.elemento.Name.lower()
+                nome_lower = (
+                    elemento.Name.lower()
+                )
 
-
-                if "termoacumulador" in nome_lower:
+                if (
+                    "termoacumulador"
+                    in nome_lower
+                ):
 
                     if vizinhos:
 
                         contador_id = vizinhos[0]
 
-                        print(
-                            "Termoacumulador encontrado — origem: ID {0}".format(
-                                contador_id
-                            )
-                        )
-
                         break
 
             except:
+
                 continue
 
 
@@ -277,47 +326,19 @@ def gerar_trocos_automatico(elementos):
 
     if contador_id is None:
 
-        print(
-            "⚠️ Origem não encontrada — usando primeiro elemento"
-        )
-
         for elem in elementos:
 
-            if hasattr(elem, "elemento"):
+            if hasattr(
+                elem,
+                "elemento"
+            ):
 
-                contador_id = elem.elemento.Id.Value
+                contador_id = get_element_id(
+                    elem.elemento
+                )
 
                 break
 
-
-    # ========================================================
-    # DEBUG — FIXTURES NO GRAFO
-    # ========================================================
-
-    for elem_id, elem in id_to_elem.items():
-
-        try:
-
-            cat_id = elem.elemento.Category.Id.Value
-
-            if cat_id == int(
-                BuiltInCategory.OST_PlumbingFixtures
-            ):
-
-                print(
-                    "Fixture {0} | vizinhos: {1}".format(
-                        elem.elemento.Name,
-                        ligacoes.get(elem_id, [])
-                    )
-                )
-
-        except:
-            continue
-
-
-    # --------------------------------------------------------
-    # Devolver informação do grafo
-    # --------------------------------------------------------
 
     return (
         elementos,
@@ -340,11 +361,7 @@ def gerar_nomenclatura(
 ):
 
     # --------------------------------------------------------
-    # Converter índice em letra
-    # 0 -> A
-    # 1 -> B
-    # 2 -> C
-    # ...
+    # LETRA
     # --------------------------------------------------------
 
     def letra_de_indice(n):
@@ -360,18 +377,66 @@ def gerar_nomenclatura(
                 26
             )
 
-            resultado = chr(
-                65 + r
-            ) + resultado
+            resultado = (
+                chr(65 + r)
+                + resultado
+            )
 
         return resultado
 
 
     # --------------------------------------------------------
-    # Verificar No Principal
+    # CACHE DE ELEMENTOS
     # --------------------------------------------------------
 
+    elemento_cache = {}
+
+    nome_cache = {}
+    categoria_cache = {}
+
+    for elem_id, wrapper in id_to_elem.items():
+
+        elemento = wrapper.elemento
+
+        elemento_cache[elem_id] = elemento
+
+        try:
+            nome_cache[elem_id] = (
+                elemento.Name
+            )
+
+        except:
+            nome_cache[elem_id] = ""
+
+
+        try:
+            categoria_cache[elem_id] = (
+                int(
+                    elemento.Category.Id.Value
+                )
+            )
+
+        except:
+            categoria_cache[elem_id] = None
+
+
+    # --------------------------------------------------------
+    # NO PRINCIPAL
+    # --------------------------------------------------------
+
+    no_principal_cache = {}
+
     def e_no_principal(elemento):
+
+        elem_id = get_element_id(
+            elemento
+        )
+
+        if elem_id in no_principal_cache:
+
+            return no_principal_cache[
+                elem_id
+            ]
 
         try:
 
@@ -379,62 +444,118 @@ def gerar_nomenclatura(
                 "No Principal"
             )
 
-            return (
+            resultado = (
                 p is not None
                 and p.AsInteger() == 1
             )
 
         except:
 
-            return False
+            resultado = False
+
+        no_principal_cache[
+            elem_id
+        ] = resultado
+
+        return resultado
 
 
     # --------------------------------------------------------
-    # Verificar Fixture
+    # FIXTURE
     # --------------------------------------------------------
+
+    fixture_cache = {}
 
     def e_fixture(
         elemento,
         rede=""
     ):
 
+        elem_id = get_element_id(
+            elemento
+        )
+
+        chave = (
+            elem_id,
+            rede.startswith("AQ")
+        )
+
+        if chave in fixture_cache:
+
+            return fixture_cache[chave]
+
         try:
 
-            cat_id = elemento.Category.Id.Value
+            if elemento.Category is None:
 
-            if cat_id != int(
-                BuiltInCategory.OST_PlumbingFixtures
-            ):
+                fixture_cache[
+                    chave
+                ] = False
 
                 return False
 
 
-            # Em AQ o TA não é considerado
-            # fixture terminal
+            cat_id = int(
+                elemento.Category.Id.Value
+            )
+
+            if cat_id != FIXTURE_CATEGORY_ID:
+
+                fixture_cache[
+                    chave
+                ] = False
+
+                return False
+
 
             if rede.startswith("AQ"):
 
-                nome_lower = elemento.Name.lower()
+                nome_lower = (
+                    elemento.Name.lower()
+                )
 
-                if "termoacumulador" in nome_lower:
+                if (
+                    "termoacumulador"
+                    in nome_lower
+                ):
+
+                    fixture_cache[
+                        chave
+                    ] = False
 
                     return False
 
+
+            fixture_cache[
+                chave
+            ] = True
 
             return True
 
         except:
 
+            fixture_cache[
+                chave
+            ] = False
+
             return False
 
 
     # --------------------------------------------------------
-    # Prefixo dos aparelhos
+    # PREFIXO FIXTURE
     # --------------------------------------------------------
+
+    prefixo_cache = {}
 
     def prefixo_fixture(nome):
 
         nome_lower = nome.lower()
+
+        if nome_lower in prefixo_cache:
+
+            return prefixo_cache[
+                nome_lower
+            ]
 
 
         if (
@@ -442,7 +563,7 @@ def gerar_nomenclatura(
             or "lava louça" in nome_lower
         ):
 
-            return "LL"
+            resultado = "LL"
 
 
         elif (
@@ -450,17 +571,17 @@ def gerar_nomenclatura(
             or "lavatorio" in nome_lower
         ):
 
-            return "LV"
+            resultado = "LV"
 
 
         elif "banheira" in nome_lower:
 
-            return "BA"
+            resultado = "BA"
 
 
         elif "chuveiro" in nome_lower:
 
-            return "CH"
+            resultado = "CH"
 
 
         elif (
@@ -468,7 +589,7 @@ def gerar_nomenclatura(
             or "autoclismo" in nome_lower
         ):
 
-            return "BR"
+            resultado = "BR"
 
 
         elif (
@@ -476,7 +597,7 @@ def gerar_nomenclatura(
             or "bide" in nome_lower
         ):
 
-            return "BD"
+            resultado = "BD"
 
 
         elif (
@@ -484,7 +605,7 @@ def gerar_nomenclatura(
             or "maquina" in nome_lower
         ):
 
-            return "MQ"
+            resultado = "MQ"
 
 
         elif (
@@ -492,22 +613,29 @@ def gerar_nomenclatura(
             or "rega" in nome_lower
         ):
 
-            return "BDR"
+            resultado = "BDR"
 
 
         elif "piscina" in nome_lower:
 
-            return "P"
+            resultado = "P"
 
 
         elif "termoacumulador" in nome_lower:
 
-            return "TA"
+            resultado = "TA"
 
 
         else:
 
-            return "XX"
+            resultado = "XX"
+
+
+        prefixo_cache[
+            nome_lower
+        ] = resultado
+
+        return resultado
 
 
     # ========================================================
@@ -515,7 +643,6 @@ def gerar_nomenclatura(
     # ========================================================
 
     no_map = {}
-
     troco_map = {}
 
     indice_no_principal = [0]
@@ -524,7 +651,7 @@ def gerar_nomenclatura(
 
 
     # --------------------------------------------------------
-    # Criar novo nó principal
+    # NOVO NÓ PRINCIPAL
     # --------------------------------------------------------
 
     def novo_no_principal():
@@ -539,23 +666,31 @@ def gerar_nomenclatura(
 
 
     # --------------------------------------------------------
-    # Criar derivação
+    # NOVA DERIVAÇÃO
     # --------------------------------------------------------
 
     def nova_derivacao(nome_pai):
 
-        if nome_pai not in contadores_derivacoes:
+        if nome_pai not in (
+            contadores_derivacoes
+        ):
 
-            contadores_derivacoes[nome_pai] = 1
+            contadores_derivacoes[
+                nome_pai
+            ] = 1
 
         else:
 
-            contadores_derivacoes[nome_pai] += 1
+            contadores_derivacoes[
+                nome_pai
+            ] += 1
 
 
         return "{0}.{1}".format(
             nome_pai,
-            contadores_derivacoes[nome_pai]
+            contadores_derivacoes[
+                nome_pai
+            ]
         )
 
 
@@ -572,19 +707,15 @@ def gerar_nomenclatura(
         no_origem = "CONTADOR"
 
 
-    # ========================================================
-    # COLOCAR ORIGEM NO MAPA
-    # ========================================================
+    no_map[
+        contador_id
+    ] = no_origem
 
-    no_map[contador_id] = no_origem
 
-    # Aqui fica inicialmente CONTADOR-?
-    # ou TA-?
-
-    troco_map[contador_id] = (
-        "{0}-?".format(
-            no_origem
-        )
+    troco_map[
+        contador_id
+    ] = "{0}-?".format(
+        no_origem
     )
 
 
@@ -611,34 +742,28 @@ def gerar_nomenclatura(
 
 
         if atual in visitados:
-
             continue
 
 
         visitados.add(atual)
 
 
-        vizinhos = [
-            v
-            for v in ligacoes.get(
-                atual,
-                []
-            )
-            if v not in visitados
-        ]
+        for vizinho_id in ligacoes.get(
+            atual,
+            []
+        ):
+
+            if vizinho_id in visitados:
+                continue
 
 
-        for vizinho_id in vizinhos:
-
-            elem_vizinho = (
-                id_to_elem[
-                    vizinho_id
-                ].elemento
-            )
+            elem_vizinho = elemento_cache[
+                vizinho_id
+            ]
 
 
             # =================================================
-            # FIXTURE TERMINAL
+            # FIXTURE
             # =================================================
 
             if e_fixture(
@@ -647,13 +772,11 @@ def gerar_nomenclatura(
             ):
 
                 nome_lower = (
-                    elem_vizinho.Name.lower()
+                    nome_cache[
+                        vizinho_id
+                    ].lower()
                 )
 
-
-                # ---------------------------------------------
-                # Termoacumulador
-                # ---------------------------------------------
 
                 if "termoacumulador" in nome_lower:
 
@@ -666,28 +789,26 @@ def gerar_nomenclatura(
                     ] = "TA"
 
 
-                # ---------------------------------------------
-                # Fixture normal
-                # ---------------------------------------------
-
                 else:
 
                     prefixo = prefixo_fixture(
-                        elem_vizinho.Name
-                    )
-
-                    troco = "{0}.{1}".format(
-                        prefixo,
-                        no_atual
+                        nome_cache[
+                            vizinho_id
+                        ]
                     )
 
                     troco_map[
                         vizinho_id
-                    ] = troco
+                    ] = "{0}.{1}".format(
+                        prefixo,
+                        no_atual
+                    )
 
                     no_map[
                         vizinho_id
-                    ] = troco
+                    ] = troco_map[
+                        vizinho_id
+                    ]
 
 
                 visitados.add(
@@ -709,12 +830,16 @@ def gerar_nomenclatura(
                     elem_vizinho
                 ):
 
-                    novo_no = novo_no_principal()
+                    novo_no = (
+                        novo_no_principal()
+                    )
 
                 else:
 
-                    novo_no = nova_derivacao(
-                        no_atual
+                    novo_no = (
+                        nova_derivacao(
+                            no_atual
+                        )
                     )
 
 
@@ -775,19 +900,20 @@ def gerar_nomenclatura(
 
 
         if not troco.endswith("-?"):
-
             continue
 
 
         no_origem_troco = (
-            troco.split("-?")[0]
+            troco[:-2]
         )
 
 
         no_destino = None
 
 
-        fila_busca = list(
+        # IMPORTANTE:
+        # deque em vez de list.pop(0)
+        fila_busca = deque(
             ligacoes.get(
                 elem_id,
                 []
@@ -795,9 +921,9 @@ def gerar_nomenclatura(
         )
 
 
-        visitados_busca = set(
-            [elem_id]
-        )
+        visitados_busca = {
+            elem_id
+        }
 
 
         while (
@@ -806,7 +932,7 @@ def gerar_nomenclatura(
         ):
 
             vizinho_id = (
-                fila_busca.pop(0)
+                fila_busca.popleft()
             )
 
 
@@ -824,7 +950,7 @@ def gerar_nomenclatura(
 
 
             # -----------------------------------------------
-            # Já tem um nó identificado
+            # Já tem nó
             # -----------------------------------------------
 
             if vizinho_id in no_map:
@@ -840,19 +966,21 @@ def gerar_nomenclatura(
                 ):
 
                     elem_candidato = (
-                        id_to_elem[
+                        elemento_cache[
                             vizinho_id
-                        ].elemento
+                        ]
                     )
 
 
                     nome_lower = (
-                        elem_candidato.Name.lower()
+                        nome_cache[
+                            vizinho_id
+                        ].lower()
                     )
 
 
                     # ---------------------------------------
-                    # Termoacumulador
+                    # TA
                     # ---------------------------------------
 
                     if (
@@ -887,23 +1015,32 @@ def gerar_nomenclatura(
 
                         no_destino = (
                             prefixo_fixture(
-                                elem_candidato.Name
+                                nome_cache[
+                                    vizinho_id
+                                ]
                             )
                         )
 
 
             # -----------------------------------------------
-            # Ainda não encontrou nó
+            # Continuar procura
             # -----------------------------------------------
 
             else:
 
-                fila_busca.extend(
-                    ligacoes.get(
-                        vizinho_id,
-                        []
-                    )
-                )
+                for proximo_id in ligacoes.get(
+                    vizinho_id,
+                    []
+                ):
+
+                    if (
+                        proximo_id
+                        not in visitados_busca
+                    ):
+
+                        fila_busca.append(
+                            proximo_id
+                        )
 
 
         # ====================================================
@@ -932,8 +1069,8 @@ def gerar_nomenclatura(
 
     for elem in elementos:
 
-        elem_id = (
-            elem.elemento.Id.Value
+        elem_id = get_element_id(
+            elem.elemento
         )
 
 
@@ -952,7 +1089,7 @@ def gerar_nomenclatura(
 
 
         if (
-            p
+            p is not None
             and not p.IsReadOnly
         ):
 
@@ -967,7 +1104,532 @@ def gerar_nomenclatura(
 
 
 # ============================================================
-# OBTER ELEMENTOS DO MODELO
+# ATRIBUIR NÓS AOS FITTINGS
+# ============================================================
+
+def atribuir_nos_a_fittings(doc):
+
+    fittings = (
+        FilteredElementCollector(doc)
+        .OfCategory(
+            BuiltInCategory.OST_PipeFitting
+        )
+        .WhereElementIsNotElementType()
+        .ToElements()
+    )
+
+
+    atribuidos = 0
+    sem_trocos = 0
+    sem_no = 0
+    ambiguos = 0
+    sem_parametro = 0
+    erros = 0
+
+
+    # ========================================================
+    # MAPAS DOS FITTINGS
+    # ========================================================
+
+    fitting_por_id = {}
+    fitting_neighbors = {}
+
+    # Troços diretamente ligados a cada fitting
+    fitting_trocos_diretos = {}
+
+
+    # --------------------------------------------------------
+    # Primeira passagem pelos fittings
+    # --------------------------------------------------------
+
+    for fitting in fittings:
+
+        fitting_id = get_element_id(
+            fitting
+        )
+
+        fitting_por_id[
+            fitting_id
+        ] = fitting
+
+        fitting_neighbors[
+            fitting_id
+        ] = []
+
+        fitting_trocos_diretos[
+            fitting_id
+        ] = []
+
+
+    # ========================================================
+    # CONSTRUIR GRAFO DOS FITTINGS
+    #
+    # Fazemos isto UMA VEZ.
+    #
+    # Antes:
+    # cada fitting voltava a percorrer os mesmos
+    # redutores/fittings.
+    #
+    # Agora:
+    # construímos o grafo uma única vez.
+    # ========================================================
+
+    for fitting in fittings:
+
+        fitting_id = get_element_id(
+            fitting
+        )
+
+        try:
+
+            cm = get_connector_manager(
+                fitting
+            )
+
+            if cm is None:
+                continue
+
+
+            it = cm.Connectors.ForwardIterator()
+
+
+            while it.MoveNext():
+
+                connector = it.Current
+
+                if not connector.IsConnected:
+                    continue
+
+
+                refs_it = (
+                    connector.AllRefs.ForwardIterator()
+                )
+
+
+                while refs_it.MoveNext():
+
+                    owner = (
+                        refs_it.Current.Owner
+                    )
+
+
+                    if owner is None:
+                        continue
+
+
+                    owner_id = get_element_id(
+                        owner
+                    )
+
+
+                    if owner_id == fitting_id:
+                        continue
+
+
+                    if owner.Category is None:
+                        continue
+
+
+                    owner_category_id = int(
+                        owner.Category.Id.Value
+                    )
+
+
+                    # ----------------------------------------
+                    # PIPE
+                    # ----------------------------------------
+
+                    if (
+                        owner_category_id
+                        == PIPE_CATEGORY_ID
+                    ):
+
+                        p_troco = (
+                            owner.LookupParameter(
+                                "Troço"
+                            )
+                        )
+
+
+                        if p_troco is None:
+                            continue
+
+
+                        troco = p_troco.AsString()
+
+
+                        if not troco:
+                            continue
+
+
+                        troco = troco.strip()
+
+
+                        if (
+                            troco
+                            not in fitting_trocos_diretos[
+                                fitting_id
+                            ]
+                        ):
+
+                            fitting_trocos_diretos[
+                                fitting_id
+                            ].append(
+                                troco
+                            )
+
+
+                    # ----------------------------------------
+                    # OUTRO FITTING
+                    #
+                    # Inclui REDUTORES
+                    # ----------------------------------------
+
+                    elif (
+                        owner_category_id
+                        == FITTING_CATEGORY_ID
+                    ):
+
+                        if (
+                            owner_id
+                            in fitting_por_id
+                        ):
+
+                            if (
+                                owner_id
+                                not in fitting_neighbors[
+                                    fitting_id
+                                ]
+                            ):
+
+                                fitting_neighbors[
+                                    fitting_id
+                                ].append(
+                                    owner_id
+                                )
+
+
+        except:
+
+            continue
+
+
+    # ========================================================
+    # ENCONTRAR COMPONENTES DE FITTINGS
+    #
+    # Todos os fittings ligados por redutores/outros fittings
+    # pertencem ao mesmo componente.
+    #
+    # Os Troços desse componente são calculados UMA VEZ.
+    # ========================================================
+
+    fitting_component_trocos = {}
+
+    componentes_visitados = set()
+
+
+    for inicio_id in fitting_por_id:
+
+        if inicio_id in componentes_visitados:
+            continue
+
+
+        componente = []
+        componente_set = set()
+
+        fila = deque(
+            [inicio_id]
+        )
+
+
+        while fila:
+
+            atual_id = fila.popleft()
+
+
+            if atual_id in componente_set:
+                continue
+
+
+            componente_set.add(
+                atual_id
+            )
+
+            componente.append(
+                atual_id
+            )
+
+
+            for vizinho_id in fitting_neighbors.get(
+                atual_id,
+                []
+            ):
+
+                if (
+                    vizinho_id
+                    not in componente_set
+                ):
+
+                    fila.append(
+                        vizinho_id
+                    )
+
+
+        componentes_visitados.update(
+            componente_set
+        )
+
+
+        # ----------------------------------------------------
+        # Recolher todos os Troços do componente
+        # ----------------------------------------------------
+
+        trocos_componente = []
+        trocos_set = set()
+
+
+        for fitting_id in componente:
+
+            for troco in fitting_trocos_diretos.get(
+                fitting_id,
+                []
+            ):
+
+                if troco not in trocos_set:
+
+                    trocos_set.add(
+                        troco
+                    )
+
+                    trocos_componente.append(
+                        troco
+                    )
+
+
+        # ----------------------------------------------------
+        # Associar o mesmo resultado a todos os fittings
+        # do componente.
+        # ----------------------------------------------------
+
+        for fitting_id in componente:
+
+            fitting_component_trocos[
+                fitting_id
+            ] = trocos_componente
+
+
+    # ========================================================
+    # PROCESSAR FITTINGS
+    # ========================================================
+
+    for fitting in fittings:
+
+        try:
+
+            fitting_id = get_element_id(
+                fitting
+            )
+
+
+            # ------------------------------------------------
+            # PARAMETRO NÓ
+            # ------------------------------------------------
+
+            p_no = fitting.LookupParameter(
+                "Nó"
+            )
+
+
+            if p_no is None:
+
+                sem_parametro += 1
+
+                continue
+
+
+            # ------------------------------------------------
+            # TROÇOS
+            # ------------------------------------------------
+
+            trocos = fitting_component_trocos.get(
+                fitting_id,
+                []
+            )
+
+
+            # ------------------------------------------------
+            # PELO MENOS 2 TROÇOS
+            # ------------------------------------------------
+
+            if len(trocos) < 2:
+
+                sem_trocos += 1
+
+                continue
+
+
+            # ------------------------------------------------
+            # PREFIXOS / SUFIXOS
+            # ------------------------------------------------
+
+            prefixos = set()
+            sufixos = set()
+
+
+            for troco in trocos:
+
+                if "-" not in troco:
+                    continue
+
+
+                prefixo, sufixo = (
+                    troco.split(
+                        "-",
+                        1
+                    )
+                )
+
+
+                prefixo = prefixo.strip()
+                sufixo = sufixo.strip()
+
+
+                if prefixo:
+                    prefixos.add(
+                        prefixo
+                    )
+
+
+                if sufixo:
+                    sufixos.add(
+                        sufixo
+                    )
+
+
+            # ------------------------------------------------
+            # NÓ
+            # ------------------------------------------------
+
+            candidatos = [
+                sufixo
+                for sufixo in sufixos
+                if sufixo in prefixos
+            ]
+
+
+            # ------------------------------------------------
+            # SEM NÓ
+            # ------------------------------------------------
+
+            if not candidatos:
+
+                sem_no += 1
+
+                continue
+
+
+            # ------------------------------------------------
+            # AMBIGUO
+            # ------------------------------------------------
+
+            if len(candidatos) > 1:
+
+                ambiguos += 1
+
+                continue
+
+
+            # ------------------------------------------------
+            # NÓ
+            # ------------------------------------------------
+
+            no = candidatos[0]
+
+
+            # ------------------------------------------------
+            # READ ONLY
+            # ------------------------------------------------
+
+            if p_no.IsReadOnly:
+
+                sem_parametro += 1
+
+                continue
+
+
+            # ------------------------------------------------
+            # ESCREVER
+            # ------------------------------------------------
+
+            p_no.Set(no)
+
+
+            # ------------------------------------------------
+            # CONFIRMAR
+            # ------------------------------------------------
+
+            if p_no.AsString() == no:
+
+                atribuidos += 1
+
+            else:
+
+                erros += 1
+
+
+        except:
+
+            erros += 1
+
+
+    # ========================================================
+    # RESUMO
+    # ========================================================
+
+    print("")
+    print("==========================================")
+    print("ATRIBUIR NÓS AOS FITTINGS")
+    print("==========================================")
+    print(
+        "Fittings encontrados: {}".format(
+            fittings.Count
+        )
+    )
+    print(
+        "NÓS ATRIBUIDOS: {}".format(
+            atribuidos
+        )
+    )
+    print(
+        "SEM TROÇOS SUFICIENTES: {}".format(
+            sem_trocos
+        )
+    )
+    print(
+        "SEM NÓ: {}".format(
+            sem_no
+        )
+    )
+    print(
+        "AMBIGUOS: {}".format(
+            ambiguos
+        )
+    )
+    print(
+        "SEM PARAMETRO / READ ONLY: {}".format(
+            sem_parametro
+        )
+    )
+    print(
+        "ERROS: {}".format(
+            erros
+        )
+    )
+    print("==========================================")
+
+
+# ============================================================
+# ELEMENTOS DO MODELO
 # ============================================================
 
 piping_system = rvt.get_element_byclass(
@@ -1038,13 +1700,6 @@ elements = rvt.get_elements_bycategory(
 
 
 # ============================================================
-# PRESSÃO
-# ============================================================
-
-pressao_rede = 30
-
-
-# ============================================================
 # CRIAR REDES
 # ============================================================
 
@@ -1053,14 +1708,29 @@ redes = {}
 
 for ele in elements:
 
-    nome_sistema = ele.get_Parameter(
-        BuiltInParameter.RBS_SYSTEM_NAME_PARAM
-    ).AsString()
+    try:
+
+        parametro_sistema = ele.get_Parameter(
+            BuiltInParameter.RBS_SYSTEM_NAME_PARAM
+        )
+
+        if parametro_sistema is None:
+            continue
+
+        nome_sistema = (
+            parametro_sistema.AsString()
+        )
+
+        if not nome_sistema:
+            continue
 
 
-    if nome_sistema.startswith(
-        ("AF", "AQ")
-    ):
+        if not nome_sistema.startswith(
+            ("AF", "AQ")
+        ):
+
+            continue
+
 
         if nome_sistema not in redes:
 
@@ -1076,6 +1746,10 @@ for ele in elements:
             )
         )
 
+    except:
+
+        continue
+
 
 # ============================================================
 # FITTINGS + ACESSÓRIOS
@@ -1088,10 +1762,17 @@ for elem in (
 
     try:
 
-        nome_sistema = (
+        parametro_sistema = (
             elem.elemento.get_Parameter(
                 BuiltInParameter.RBS_SYSTEM_NAME_PARAM
-            ).AsString()
+            )
+        )
+
+        if parametro_sistema is None:
+            continue
+
+        nome_sistema = (
+            parametro_sistema.AsString()
         )
 
     except:
@@ -1119,10 +1800,17 @@ for fixture in fixtures_wrapped:
 
     try:
 
-        nome_sistema = (
+        parametro_sistema = (
             fixture.elemento.get_Parameter(
                 BuiltInParameter.RBS_SYSTEM_NAME_PARAM
-            ).AsString()
+            )
+        )
+
+        if parametro_sistema is None:
+            continue
+
+        nome_sistema = (
+            parametro_sistema.AsString()
         )
 
     except:
@@ -1131,45 +1819,31 @@ for fixture in fixtures_wrapped:
 
 
     if not nome_sistema:
-
         continue
 
-
-    # Exemplo:
-    # "AF_EDI,AQ_EDI"
 
     sistemas = [
         s.strip()
         for s in nome_sistema.split(",")
+        if s.strip()
     ]
 
 
     for sistema in sistemas:
 
-        if sistema in redes:
+        if sistema not in redes:
+            continue
 
-            if fixture not in redes[
+
+        if fixture not in redes[
+            sistema
+        ]:
+
+            redes[
                 sistema
-            ]:
-
-                redes[
-                    sistema
-                ].append(
-                    fixture
-                )
-
-
-# ============================================================
-# LEVEL RUA
-# ============================================================
-
-for l in levels:
-
-    if l.Name == "RUA":
-
-        lvl_abastecimento = round(
-            l.Elevation / 3.281
-        )
+            ].append(
+                fixture
+            )
 
 
 # ============================================================
@@ -1184,174 +1858,89 @@ t = Transaction(
 t.Start()
 
 
-# ============================================================
-# PROCESSAR REDES
-# ============================================================
+try:
 
-output_por_rede_temp = {}
+    # ========================================================
+    # PROCESSAR REDES
+    # ========================================================
 
-
-for nome_rede, elementos_rede in redes.items():
-
-    print("")
-    print("======================================")
-    print("REDE: {0}".format(nome_rede))
-    print("======================================")
+    output_por_rede_temp = {}
 
 
-    # --------------------------------------------------------
-    # 1. GERAR GRAFO
-    # --------------------------------------------------------
+    for nome_rede, elementos_rede in redes.items():
 
-    (
-        elementos_rede,
-        ligacoes,
-        id_to_elem,
-        contador_id
-    ) = gerar_trocos_automatico(
-        elementos_rede
-    )
-
-
-    print(
-        "ID origem: {0}".format(
-            contador_id
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # 2. GERAR NOMENCLATURA
-    # --------------------------------------------------------
-
-    (
-        elementos_com_troco,
-        troco_map,
-        no_map
-    ) = gerar_nomenclatura(
-        elementos_rede,
-        ligacoes,
-        id_to_elem,
-        contador_id,
-        nome_rede
-    )
-
-
-    # --------------------------------------------------------
-    # 3. DEBUG — TODOS OS ELEMENTOS
-    # --------------------------------------------------------
-
-    print("")
-    print("---- TROÇOS GERADOS ----")
-
-
-    for elem_id, troco in troco_map.items():
-
-        elem = id_to_elem[
-            elem_id
-        ]
-
+        print("")
         print(
-            "{0} | ID {1} -> {2}".format(
-                elem.nome,
-                elem_id,
-                troco
+            "======================================"
+        )
+        print(
+            "REDE: {0}".format(
+                nome_rede
             )
+        )
+        print(
+            "======================================"
         )
 
 
-    print("")
-    print("---- FIXTURES ----")
+        # ----------------------------------------------------
+        # 1. GRAFO
+        # ----------------------------------------------------
+
+        (
+            elementos_rede,
+            ligacoes,
+            id_to_elem,
+            contador_id
+        ) = gerar_trocos_automatico(
+            elementos_rede
+        )
 
 
-    for elem_id, elem in id_to_elem.items():
+        # ----------------------------------------------------
+        # 2. NOMENCLATURA
+        # ----------------------------------------------------
 
-        try:
-
-            cat_id = (
-                elem.elemento.Category.Id.Value
-            )
-
-
-            if cat_id == int(
-                BuiltInCategory.OST_PlumbingFixtures
-            ):
-
-                print(
-                    "Fixture: {0} | ID: {1} | Troço: {2}".format(
-                        elem.nome,
-                        elem_id,
-                        troco_map.get(
-                            elem_id,
-                            "N/A"
-                        )
-                    )
-                )
-
-        except:
-
-            continue
+        (
+            elementos_com_troco,
+            troco_map,
+            no_map
+        ) = gerar_nomenclatura(
+            elementos_rede,
+            ligacoes,
+            id_to_elem,
+            contador_id,
+            nome_rede
+        )
 
 
-# ============================================================
-# DEBUG FINAL
-# ============================================================
+    # ========================================================
+    # NÓS DOS FITTINGS
+    # ========================================================
 
-print("")
-print("======================================")
-print(
-    "Fixtures recolhidos: {0}".format(
-        len(fixtures_wrapped)
+    atribuir_nos_a_fittings(
+        doc
     )
-)
-print("======================================")
 
 
-for f in fixtures_wrapped[:3]:
+    # ========================================================
+    # COMMIT
+    # ========================================================
+
+    t.Commit()
+
+
+except Exception as ex:
+
+    print("")
+    print(
+        "ERRO GERAL: {}".format(
+            ex
+        )
+    )
 
     try:
+        t.RollBack()
 
-        cat_id = (
-            f.elemento.Category.Id.Value
-        )
-
-
-        nome_sistema = (
-            f.elemento.get_Parameter(
-                BuiltInParameter.RBS_SYSTEM_NAME_PARAM
-            ).AsString()
-        )
-
-
-        print(
-            "Nome: {0} | Cat ID: {1} | Sistema: {2}".format(
-                f.nome,
-                cat_id,
-                nome_sistema
-            )
-        )
-
-
-    except Exception as ex:
-
-        print(
-            "Erro: {0}".format(
-                ex
-            )
-        )
-
-
-print(
-    "OST_PlumbingFixtures ID: {0}".format(
-        int(
-            BuiltInCategory.OST_PlumbingFixtures
-        )
-    )
-)
-
-
-# ============================================================
-# COMMIT
-# ============================================================
-
-t.Commit()
+    except:
+        pass
